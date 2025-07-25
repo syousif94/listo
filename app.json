@@ -10,7 +10,8 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.syousif.listo"
+      "bundleIdentifier": "com.syousif.listo",
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
@@ -55,6 +56,7 @@
           }
         }
       ],
+      "expo-apple-authentication",
       [
         "expo-splash-screen",
         {
