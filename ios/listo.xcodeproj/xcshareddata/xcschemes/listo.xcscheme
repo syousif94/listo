@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-               BuildableName = "listo.app"
-               BlueprintName = "listo"
-               ReferencedContainer = "container:listo.xcodeproj">
+               BuildableName = "Listo.app"
+               BlueprintName = "Listo"
+               ReferencedContainer = "container:Listo.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "00E356ED1AD99517003FC87E"
-               BuildableName = "listoTests.xctest"
-               BlueprintName = "listoTests"
-               ReferencedContainer = "container:listo.xcodeproj">
+               BuildableName = "ListoTests.xctest"
+               BlueprintName = "ListoTests"
+               ReferencedContainer = "container:Listo.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -55,9 +55,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "listo.app"
-            BlueprintName = "listo"
-            ReferencedContainer = "container:listo.xcodeproj">
+            BuildableName = "Listo.app"
+            BlueprintName = "Listo"
+            ReferencedContainer = "container:Listo.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -72,9 +72,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "listo.app"
-            BlueprintName = "listo"
-            ReferencedContainer = "container:listo.xcodeproj">
+            BuildableName = "Listo.app"
+            BlueprintName = "Listo"
+            ReferencedContainer = "container:Listo.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

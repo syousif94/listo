@@ -1,28 +1,11 @@
 import React, { useState } from 'react';
-import {
-  Dimensions,
-  StyleSheet,
-  useWindowDimensions,
-  View,
-} from 'react-native';
-import {
-  PanGestureHandlerGestureEvent,
-  ScrollView,
-} from 'react-native-gesture-handler';
-import {
-  runOnJS,
-  useAnimatedGestureHandler,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from 'react-native-reanimated';
+import { Dimensions, StyleSheet, View } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
+import { useSharedValue } from 'react-native-reanimated';
 import RecordingButton from './RecordingButton';
 import TodoGrid from './TodoGrid';
 
 export default function TodoApp() {
-  const { width, height } = useWindowDimensions();
-
-  const [currentView, setCurrentView] = useState<'grid' | 'dueDates'>('grid');
   const [editingListId, setEditingListId] = useState<string | null>(null);
   const [showListEditor, setShowListEditor] = useState(false);
 
@@ -31,8 +14,6 @@ export default function TodoApp() {
   const editorAnchorY = useSharedValue(0);
   const editorAnchorWidth = useSharedValue(0);
   const editorAnchorHeight = useSharedValue(0);
-
-  const translateX = useSharedValue(0);
 
   const handleEditList = (
     listId: string,
@@ -52,44 +33,6 @@ export default function TodoApp() {
     }
     setShowListEditor(true);
   };
-
-  const handleEditComplete = () => {
-    setEditingListId(null);
-    setShowListEditor(false);
-  };
-
-  const gestureHandler =
-    useAnimatedGestureHandler<PanGestureHandlerGestureEvent>({
-      onStart: (_, context) => {
-        context.startX = translateX.value;
-      },
-      onActive: (event, context) => {
-        translateX.value = context.startX + event.translationX;
-      },
-      onEnd: (event) => {
-        const shouldSwipe =
-          Math.abs(event.velocityX) > 500 ||
-          Math.abs(event.translationX) > width / 3;
-
-        if (shouldSwipe) {
-          if (event.translationX > 0 && currentView === 'dueDates') {
-            translateX.value = withSpring(0);
-            runOnJS(setCurrentView)('grid');
-          } else if (event.translationX < 0 && currentView === 'grid') {
-            translateX.value = withSpring(-width);
-            runOnJS(setCurrentView)('dueDates');
-          } else {
-            translateX.value = withSpring(currentView === 'grid' ? 0 : -width);
-          }
-        } else {
-          translateX.value = withSpring(currentView === 'grid' ? 0 : -width);
-        }
-      },
-    });
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-  }));
 
   const pageStyle = {
     width: Dimensions.get('window').width,
