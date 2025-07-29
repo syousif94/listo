@@ -16,7 +16,6 @@ import {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import DueDatesView from './DueDatesView';
 import RecordingButton from './RecordingButton';
 import TodoGrid from './TodoGrid';
 
@@ -99,6 +98,8 @@ export default function TodoApp() {
 
   return (
     <View style={styles.container}>
+      {/* <AudioProcessingStatus /> */}
+
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -108,9 +109,9 @@ export default function TodoApp() {
         <View style={[styles.viewContainer, pageStyle]}>
           <TodoGrid onEditList={handleEditList} />
         </View>
-        <View style={[styles.viewContainer, pageStyle]}>
+        {/* <View style={[styles.viewContainer, pageStyle]}>
           <DueDatesView />
-        </View>
+        </View> */}
       </ScrollView>
 
       <RecordingButton />
@@ -136,7 +137,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: '#000',
+    backgroundColor: '#ffffff',
   },
   viewContainer: {
     flex: 1,

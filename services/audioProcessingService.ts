@@ -1,5 +1,7 @@
 import * as FileSystem from 'expo-file-system';
 import { FFmpegKit, ReturnCode } from 'ffmpeg-kit-react-native-alt';
+import type { ChatCompletion } from 'groq-sdk/resources/chat/completions.mjs';
+import { useTodoStore } from '../store/todoStore';
 import { initializeWhisper } from './whisperService';
 
 export interface TranscriptionResult {
@@ -131,22 +133,23 @@ export async function processRecordingToTranscript(
   }
 }
 
-// Function to post transcript to API (placeholder - replace with your actual endpoint)
-export async function postTranscriptToAPI(
+// Function to send transcript to chat API and process tool calls
+export async function processTranscriptWithChat(
   transcript: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    console.log('🌐 Posting transcript to API:', transcript);
+    console.log('🌐 Sending transcript to chat API:', transcript);
 
-    // TODO: Replace 'YOUR_API_ENDPOINT' with your actual API URL
-    // Example: const response = await fetch('https://your-api.com/transcripts', {
-    const API_ENDPOINT = 'YOUR_API_ENDPOINT'; // <-- CHANGE THIS
+    // Get current lists from store
+    const currentLists = useTodoStore.getState().getCurrentListsString();
 
-    if (API_ENDPOINT === 'YOUR_API_ENDPOINT') {
-      // Skip API call if not configured
-      console.log('⚠️ API endpoint not configured, skipping API call');
-      return { success: true };
-    }
+    // Prepend current lists to transcript
+    const fullTranscript = `${currentLists}\n\nNew request: ${transcript}`;
+
+    console.log('📋 Full transcript with current lists:', fullTranscript);
+
+    // TODO: Replace with your actual backend URL
+    const API_ENDPOINT = 'https://sammys-mac-mini.tail2bbcb.ts.net/chat'; // <-- CHANGE THIS to your backend URL
 
     const response = await fetch(API_ENDPOINT, {
       method: 'POST',
@@ -154,21 +157,69 @@ export async function postTranscriptToAPI(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        transcript,
-        timestamp: new Date().toISOString(),
+        transcript: fullTranscript,
       }),
     });
 
-    if (response.ok) {
-      console.log('✅ Successfully posted transcript to API');
-      return { success: true };
-    } else {
+    if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ API request failed:', response.status, errorText);
-      return { success: false, error: `API error: ${response.status}` };
+      console.error('❌ Chat API request failed:', response.status, errorText);
+      return {
+        success: false,
+        error: `API error: ${response.status} - ${errorText}`,
+      };
     }
+
+    const result = (await response.json()) as ChatCompletion;
+    console.log('✅ Chat API response received:', result);
+
+    // Extract tool calls from the response
+    const toolCalls = result.choices?.[0]?.message?.tool_calls || [];
+
+    if (toolCalls.length === 0) {
+      console.log('⚠️ No tool calls found in response');
+      return {
+        success: true,
+      };
+    }
+
+    console.log('🔧 Processing tool calls:', toolCalls);
+
+    // Process each tool call
+    const store = useTodoStore.getState();
+
+    for (const toolCall of toolCalls) {
+      try {
+        const functionName = toolCall.function.name;
+        const args = JSON.parse(toolCall.function.arguments);
+
+        console.log(`🔧 Executing tool call: ${functionName}`, args);
+
+        switch (functionName) {
+          case 'createListWithTasks':
+            store.createListWithTasks(args.title, args.tasks);
+            console.log(`✅ Created list: ${args.title}`);
+            break;
+
+          case 'renameList':
+            store.renameList(args.listId, args.newTitle);
+            console.log(`✅ Renamed list ${args.listId} to: ${args.newTitle}`);
+            break;
+
+          default:
+            console.warn(`⚠️ Unknown tool call: ${functionName}`);
+        }
+      } catch (toolError) {
+        console.error('❌ Error processing tool call:', toolCall, toolError);
+        // Continue processing other tool calls even if one fails
+      }
+    }
+
+    return {
+      success: true,
+    };
   } catch (error) {
-    console.error('❌ Failed to post to API:', error);
+    console.error('❌ Failed to process transcript with chat:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Network error',
@@ -182,6 +233,10 @@ export async function processRecordingComplete(recordingPath: string): Promise<{
   success: boolean;
   error?: string;
 }> {
+  // Update store to show processing started
+  const store = useTodoStore.getState();
+  store.updateAudioProcessing({ isProcessing: true, error: undefined });
+
   try {
     console.log('🎯 Starting complete recording processing flow...');
 
@@ -191,40 +246,69 @@ export async function processRecordingComplete(recordingPath: string): Promise<{
     );
 
     if (!transcriptionResult.success) {
+      const error = transcriptionResult.error || 'Transcription failed';
+      store.updateAudioProcessing({
+        isProcessing: false,
+        error,
+        lastTranscript: transcriptionResult.transcript,
+      });
       return {
         transcript: '',
         success: false,
-        error: transcriptionResult.error,
+        error,
       };
     }
 
-    // Post to API
-    const apiResult = await postTranscriptToAPI(transcriptionResult.transcript);
+    console.log('📝 Transcription successful, sending to chat API...');
+    store.updateAudioProcessing({
+      lastTranscript: transcriptionResult.transcript,
+    });
 
-    if (!apiResult.success) {
-      console.warn('⚠️ Transcription succeeded but API posting failed');
-      // Still return the transcript even if API fails
+    // Process with chat API
+    const chatResult = await processTranscriptWithChat(
+      transcriptionResult.transcript
+    );
+
+    if (!chatResult.success) {
+      const error = `Transcription: ✅ | Chat processing: ❌ ${chatResult.error}`;
+      store.updateAudioProcessing({
+        isProcessing: false,
+        error,
+      });
+      // Still return the transcript even if chat processing fails
       return {
         transcript: transcriptionResult.transcript,
         success: false,
-        error: `Transcription: ✅ | API: ❌ ${apiResult.error}`,
+        error,
       };
     }
 
     console.log('🎉 Complete processing flow successful!');
+    store.updateAudioProcessing({
+      isProcessing: false,
+      error: undefined,
+    });
+
     return {
       transcript: transcriptionResult.transcript,
       success: true,
     };
   } catch (error) {
     console.error('❌ Complete processing flow failed:', error);
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : 'Unknown error in processing flow';
+
+    store.updateAudioProcessing({
+      isProcessing: false,
+      error: errorMessage,
+    });
+
     return {
       transcript: '',
       success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Unknown error in processing flow',
+      error: errorMessage,
     };
   }
 }

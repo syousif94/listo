@@ -1,5 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   measure,
@@ -8,19 +7,29 @@ import Animated, {
   useAnimatedRef,
   useAnimatedStyle,
   useSharedValue,
+  withSpring,
+  withTiming,
 } from 'react-native-reanimated';
-import { TodoList } from '../store/todoStore';
+import { TodoList, useTodoStore } from '../store/todoStore';
 
 interface TodoListCardProps {
   list: TodoList;
-  size: number;
+  width: number;
   isExpanded: boolean;
-  onPress: (position: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  }) => void;
+  onPress: (
+    scaledPosition: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    },
+    normalPosition: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }
+  ) => void;
   onDismiss: () => void;
   onEdit: (
     listId: string,
@@ -36,7 +45,7 @@ interface TodoListCardProps {
 
 export default function TodoListCard({
   list,
-  size,
+  width,
   isExpanded,
   onPress,
   onDismiss,
@@ -45,10 +54,10 @@ export default function TodoListCard({
 }: TodoListCardProps) {
   const scale = useSharedValue(1);
   const opacity = useSharedValue(1);
-  const cardRef = useRef<Pressable>(null);
+  const toggleTodo = useTodoStore((state) => state.toggleTodo);
 
+  const parentAnimatedRef = useAnimatedRef();
   const animatedRef = useAnimatedRef();
-  const editButtonRef = useAnimatedRef();
 
   useEffect(() => {
     if (isExpanded) {
@@ -56,98 +65,146 @@ export default function TodoListCard({
     } else {
       opacity.value = 1;
     }
-  }, [isExpanded]);
+  }, [isExpanded, opacity]);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
     opacity: opacity.value,
+  }));
+
+  const cardAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
   }));
 
   const handlePress = () => {
     runOnUI(() => {
-      const measurement = measure(animatedRef);
+      console.log('pressed starting');
+      const scaledMeasurement = measure(animatedRef);
+      const normalMeasurement = measure(parentAnimatedRef);
 
-      if (measurement === null) {
+      if (scaledMeasurement === null || normalMeasurement === null) {
         return;
       }
 
-      runOnJS(onPress)({
-        x: measurement.pageX,
-        y: measurement.pageY,
-        width: measurement.width,
-        height: measurement.height,
-      });
+      console.log('pressed');
+
+      runOnJS(onPress)(
+        {
+          x: scaledMeasurement.pageX,
+          y: scaledMeasurement.pageY,
+          width: scaledMeasurement.width,
+          height: scaledMeasurement.height,
+        },
+        {
+          x: normalMeasurement.pageX,
+          y: normalMeasurement.pageY,
+          width: normalMeasurement.width,
+          height: normalMeasurement.height,
+        }
+      );
     })();
   };
 
-  const handleEditPress = (e: any) => {
-    e.stopPropagation();
-
+  const handlePressIn = () => {
     runOnUI(() => {
-      const measurement = measure(editButtonRef);
-
-      if (measurement === null) {
-        return;
-      }
-
-      runOnJS(onEdit)(list.id, {
-        x: measurement.pageX,
-        y: measurement.pageY,
-        width: measurement.width,
-        height: measurement.height,
-      });
+      // Scale down
+      scale.value = withSpring(0.9, { damping: 15, stiffness: 300 });
     })();
+    console.log('press in');
+  };
+
+  const handlePressOut = () => {
+    scale.value = withTiming(1, { duration: 150 });
+  };
+
+  const CheckboxComponent = ({
+    item,
+    itemIndex,
+  }: {
+    item: any;
+    itemIndex: number;
+  }) => {
+    const checkboxOpacity = useSharedValue(1);
+
+    const checkboxAnimatedStyle = useAnimatedStyle(() => ({
+      opacity: checkboxOpacity.value,
+    }));
+
+    const handleCheckboxPress = () => {
+      // Fade effect
+      checkboxOpacity.value = withTiming(0.3, { duration: 100 }, () => {
+        checkboxOpacity.value = withTiming(1, { duration: 100 });
+      });
+
+      // Toggle the todo
+      toggleTodo(list.id, item.id);
+    };
+
+    return (
+      <Pressable onPress={handleCheckboxPress} hitSlop={8}>
+        <Animated.View
+          style={[
+            styles.checkbox,
+            item.completed && styles.checkboxCompleted,
+            checkboxAnimatedStyle,
+          ]}
+        >
+          {item.completed && <View style={styles.checkboxDot} />}
+        </Animated.View>
+      </Pressable>
+    );
   };
 
   return (
     <Animated.View
-      style={[styles.container, { width: size, height: size }, animatedStyle]}
-      ref={animatedRef}
+      style={[styles.container, { width }, animatedStyle]}
+      ref={parentAnimatedRef}
     >
       <Pressable
-        ref={cardRef}
-        style={[
-          styles.card,
-          { width: size, height: size, backgroundColor: list.color || '#fff' },
-        ]}
+        style={[{ width }]}
         onPress={handlePress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
         disabled={isExpanded}
       >
-        <View style={styles.header}>
-          <Text style={styles.title} numberOfLines={2}>
-            {list.name}
-          </Text>
-          <Animated.View ref={editButtonRef}>
-            <Pressable style={styles.editButton} onPress={handleEditPress}>
-              <Ionicons name="ellipsis-horizontal" size={16} color="#666" />
-            </Pressable>
-          </Animated.View>
-        </View>
+        <Animated.View
+          style={[
+            styles.card,
+            {
+              width,
+              minHeight: width, // 1:1 aspect ratio
+              backgroundColor: '#ffed85',
+            },
+            cardAnimatedStyle,
+          ]}
+          ref={animatedRef}
+        >
+          <View style={styles.header}>
+            <Text style={styles.title} numberOfLines={2}>
+              {list.name}
+            </Text>
+            {/* <Animated.View ref={editButtonRef}>
+              <Pressable style={styles.editButton} onPress={handleEditPress}>
+                <Ionicons name="ellipsis-horizontal" size={16} color="#666" />
+              </Pressable>
+            </Animated.View> */}
+          </View>
 
-        <View style={styles.itemsList}>
-          {list.items.slice(0, 3).map((item, itemIndex) => (
-            <View key={itemIndex} style={styles.itemRow}>
-              <View
-                style={[
-                  styles.checkbox,
-                  item.completed && styles.checkboxCompleted,
-                ]}
-              />
-              <Text
-                style={[
-                  styles.itemText,
-                  item.completed && styles.itemTextCompleted,
-                ]}
-                numberOfLines={1}
-              >
-                {item.text}
-              </Text>
-            </View>
-          ))}
-          {list.items.length > 3 && (
-            <Text style={styles.moreItems}>+{list.items.length - 3} more</Text>
-          )}
-        </View>
+          <View style={styles.itemsList}>
+            {list.items.map((item, itemIndex) => (
+              <View key={itemIndex} style={styles.itemRow}>
+                <Text
+                  style={[
+                    styles.itemText,
+                    item.completed && styles.itemTextCompleted,
+                  ]}
+                >
+                  {item.text}
+                </Text>
+                <CheckboxComponent item={item} itemIndex={itemIndex} />
+              </View>
+            ))}
+          </View>
+        </Animated.View>
       </Pressable>
     </Animated.View>
   );
@@ -159,8 +216,9 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
+    paddingBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -173,10 +231,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   title: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#333',
     flex: 1,
@@ -190,13 +248,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  itemsList: {
-    flex: 1,
-  },
+  itemsList: {},
   itemRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
+    paddingVertical: 4,
   },
   checkbox: {
     width: 12,
@@ -204,25 +259,29 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1.5,
     borderColor: 'rgba(0, 0, 0, 0.2)',
-    marginRight: 8,
+    marginLeft: 8,
+    marginTop: 3,
   },
   checkboxCompleted: {
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderColor: 'rgba(0, 0, 0, 0.6)',
+    // backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  checkboxDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4ade80', // green-400
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -4 }, { translateY: -4 }],
   },
   itemText: {
-    fontSize: 18,
+    fontSize: 14,
     color: 'rgba(0, 0, 0, 0.7)',
     flex: 1,
   },
   itemTextCompleted: {
-    textDecorationLine: 'line-through',
-    color: 'rgba(0, 0, 0, 0.4)',
-  },
-  moreItems: {
-    fontSize: 12,
-    color: 'rgba(0, 0, 0, 0.4)',
-    fontStyle: 'italic',
-    marginTop: 4,
+    color: 'rgba(0, 0, 0, 0.3)',
   },
 });

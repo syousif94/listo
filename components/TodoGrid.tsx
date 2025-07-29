@@ -1,15 +1,22 @@
+import { MasonryFlashList } from '@shopify/flash-list';
 import React, { useState } from 'react';
-import { Dimensions, FlatList, StyleSheet, View } from 'react-native';
-import { useSharedValue } from 'react-native-reanimated';
+import { Dimensions, StyleSheet, View } from 'react-native';
+import Animated, { useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTodoStore } from '../store/todoStore';
+import { TodoList, useTodoStore } from '../store/todoStore';
 import ExpandedTodoCard from './ExpandedTodoCard';
 import TodoListCard from './TodoListCard';
 
+function createTypedMasonryList<T>() {
+  return Animated.createAnimatedComponent(MasonryFlashList<T>);
+}
+
+const ListsMasonryList = createTypedMasonryList<TodoList>();
+
 const { width } = Dimensions.get('window');
-const CARD_MARGIN = 20;
+const CARD_MARGIN = 12;
 const CARDS_PER_ROW = 2;
-const CARD_SIZE = (width - CARD_MARGIN * (CARDS_PER_ROW + 1)) / CARDS_PER_ROW;
+const CARD_WIDTH = (width - CARD_MARGIN * (CARDS_PER_ROW + 1)) / CARDS_PER_ROW;
 
 interface TodoGridProps {
   onEditList: (
@@ -34,15 +41,29 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
   const cardWidth = useSharedValue(0);
   const cardHeight = useSharedValue(0);
 
+  // Use shared values for normal (dismiss) position
+  const normalCardX = useSharedValue(0);
+  const normalCardY = useSharedValue(0);
+  const normalCardWidth = useSharedValue(0);
+  const normalCardHeight = useSharedValue(0);
+
   const handleCardPress = (
     listId: string,
-    position: { x: number; y: number; width: number; height: number }
+    scaledPosition: { x: number; y: number; width: number; height: number },
+    normalPosition: { x: number; y: number; width: number; height: number }
   ) => {
-    // Update shared values instead of state
-    cardX.value = position.x;
-    cardY.value = position.y;
-    cardWidth.value = position.width;
-    cardHeight.value = position.height;
+    // Update shared values for scaled position (animation start)
+    cardX.value = scaledPosition.x;
+    cardY.value = scaledPosition.y;
+    cardWidth.value = scaledPosition.width;
+    cardHeight.value = scaledPosition.height;
+
+    // Update shared values for normal position (dismiss target)
+    normalCardX.value = normalPosition.x;
+    normalCardY.value = normalPosition.y;
+    normalCardWidth.value = normalPosition.width;
+    normalCardHeight.value = normalPosition.height;
+
     setExpandedListId(listId);
   };
 
@@ -50,8 +71,11 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
     setExpandedListId(null);
   };
 
-  const handleEditList = (listId: string) => {
-    onEditList(listId);
+  const handleEditList = (
+    listId: string,
+    position: { x: number; y: number; width: number; height: number }
+  ) => {
+    onEditList(listId, position);
   };
 
   const renderItem = ({ item, index }: { item: any; index: number }) => {
@@ -60,11 +84,13 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
     return (
       <TodoListCard
         list={item}
-        size={CARD_SIZE}
+        width={CARD_WIDTH}
         isExpanded={isExpanded}
-        onPress={(position) => handleCardPress(item.id, position)}
+        onPress={(scaledPosition, normalPosition) =>
+          handleCardPress(item.id, scaledPosition, normalPosition)
+        }
         onDismiss={handleCardDismiss}
-        onEdit={() => handleEditList(item.id)}
+        onEdit={handleEditList}
         index={index}
       />
     );
@@ -72,19 +98,18 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
 
   return (
     <View style={styles.container}>
-      <FlatList
+      <ListsMasonryList
         data={lists}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
+        extraData={expandedListId}
         numColumns={CARDS_PER_ROW}
-        contentContainerStyle={[
-          styles.grid,
-          {
-            paddingTop: insets.top + 16,
-            paddingBottom: insets.bottom,
-          },
-        ]}
-        columnWrapperStyle={styles.row}
+        contentContainerStyle={{
+          paddingTop: insets.top + 16,
+          paddingBottom: insets.bottom,
+          paddingLeft: CARD_MARGIN,
+          // paddingHorizontal: CARD_MARGIN,
+        }}
         scrollEnabled={!expandedListId}
       />
 
@@ -97,6 +122,10 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
           initialY={cardY}
           initialWidth={cardWidth}
           initialHeight={cardHeight}
+          normalX={normalCardX}
+          normalY={normalCardY}
+          normalWidth={normalCardWidth}
+          normalHeight={normalCardHeight}
         />
       )}
     </View>
@@ -106,11 +135,5 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  grid: {
-    padding: CARD_MARGIN,
-  },
-  row: {
-    justifyContent: 'space-between',
   },
 });

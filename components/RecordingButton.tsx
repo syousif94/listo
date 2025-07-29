@@ -1,6 +1,6 @@
 import { AntDesign, Feather } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Pressable, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, useWindowDimensions, View } from 'react-native';
 import AudioRecorderPlayer, {
   RecordBackType,
 } from 'react-native-audio-recorder-player';
@@ -89,6 +89,39 @@ const ProcessingMeter: React.FC<{ maxHeight: number; color: string }> = ({
   );
 };
 
+// Static version of the processing meter for idle state
+const StaticMeter: React.FC<{ maxHeight: number; color: string }> = ({
+  maxHeight,
+  color,
+}) => {
+  // Different heights for each bar (as percentages of maxHeight)
+  const barHeights = [0.4, 0.8, 0.6, 0.9];
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: maxHeight,
+      }}
+    >
+      {barHeights.map((heightPercent, index) => (
+        <View
+          key={index}
+          style={{
+            backgroundColor: color,
+            borderRadius: 0.5,
+            width: 1,
+            height: maxHeight * heightPercent,
+            marginHorizontal: 2,
+          }}
+        />
+      ))}
+    </View>
+  );
+};
+
 enum RecordingState {
   IDLE = 'idle',
   LOADING = 'loading',
@@ -122,11 +155,12 @@ export default function RecordingButton({
   );
   const [meteringValues, setMeteringValues] = useState<number[]>([]);
   const [currentRecordingPath, setCurrentRecordingPath] = useState<string>('');
+
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
   const scale = useSharedValue(1);
   const width = useSharedValue(100);
-  const height = useSharedValue(50);
+  const height = useSharedValue(54);
 
   // Opacity values for fade animations
   const recordViewOpacity = useSharedValue(1);
@@ -180,7 +214,7 @@ export default function RecordingButton({
       damping: 15,
       stiffness: 150,
     });
-    height.value = withSpring(50, {
+    height.value = withSpring(54, {
       damping: 15,
       stiffness: 150,
     });
@@ -256,7 +290,7 @@ export default function RecordingButton({
         damping: 15,
         stiffness: 150,
       });
-      height.value = withSpring(50, {
+      height.value = withSpring(54, {
         damping: 15,
         stiffness: 150,
       });
@@ -293,11 +327,11 @@ export default function RecordingButton({
       audioRecorderPlayer.removeRecordBackListener();
       setRecordingState(RecordingState.PROCESSING);
       // Animate to processing state size (50px width) with more damping
-      width.value = withSpring(50, {
+      width.value = withSpring(54, {
         damping: 25,
         stiffness: 150,
       });
-      height.value = withSpring(50, {
+      height.value = withSpring(54, {
         damping: 25,
         stiffness: 150,
       });
@@ -322,9 +356,43 @@ export default function RecordingButton({
       );
 
       console.log('✅ Processing pipeline completed:', processingResult);
+
+      // Reset to idle state after processing completes
+      setRecordingState(RecordingState.IDLE);
+
+      // Animate back to collapsed state
+      width.value = withSpring(100, {
+        damping: 15,
+        stiffness: 150,
+      });
+      height.value = withSpring(54, {
+        damping: 25,
+        stiffness: 150,
+      });
+
+      // Fade out processing view and fade in record view
+      processingViewOpacity.value = withTiming(0, { duration: 200 });
+      recordViewOpacity.value = withTiming(1, { duration: 200 });
     } catch (error) {
       console.error('Failed to stop recording:', error);
-      setRecordingState(RecordingState.RECORDING);
+
+      // Reset to idle state on error
+      setRecordingState(RecordingState.IDLE);
+
+      // Animate back to collapsed state
+      width.value = withSpring(100, {
+        damping: 15,
+        stiffness: 150,
+      });
+      height.value = withSpring(54, {
+        damping: 25,
+        stiffness: 150,
+      });
+
+      // Fade out processing view and fade in record view
+      processingViewOpacity.value = withTiming(0, { duration: 200 });
+      recordViewOpacity.value = withTiming(1, { duration: 200 });
+
       onTranscriptionComplete?.(
         '',
         false,
@@ -347,7 +415,7 @@ export default function RecordingButton({
         damping: 15,
         stiffness: 150,
       });
-      height.value = withSpring(50, {
+      height.value = withSpring(54, {
         damping: 15,
         stiffness: 150,
       });
@@ -403,7 +471,7 @@ export default function RecordingButton({
           damping: 15,
           stiffness: 150,
         });
-        height.value = withSpring(50, {
+        height.value = withSpring(54, {
           damping: 15,
           stiffness: 150,
         });
@@ -434,25 +502,7 @@ export default function RecordingButton({
           recordViewAnimatedStyle,
         ]}
       >
-        <View
-          style={{
-            backgroundColor: '#fff',
-            width: 8,
-            height: 8,
-            borderRadius: 4,
-            marginRight: 12,
-          }}
-        />
-        <Text
-          style={{
-            fontSize: 12,
-            color: '#fff',
-            fontWeight: 'bold',
-            textAlign: 'center',
-          }}
-        >
-          Record
-        </Text>
+        <StaticMeter maxHeight={20} color="white" />
       </Animated.View>
     );
   };
@@ -585,7 +635,7 @@ export default function RecordingButton({
         <Animated.View
           style={[
             {
-              backgroundColor: '#ff0000',
+              backgroundColor: '#00AA00',
               justifyContent: 'center',
               alignItems: 'center',
               overflow: 'hidden',

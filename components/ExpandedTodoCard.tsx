@@ -1,21 +1,29 @@
-import React, { useEffect } from 'react';
-import { Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  FlatList,
-  Gesture,
-  GestureDetector,
-} from 'react-native-gesture-handler';
+  Dimensions,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Extrapolation,
   interpolate,
   interpolateColor,
   runOnJS,
   SharedValue,
+  useAnimatedRef,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
-import { useTodoStore } from '../store/todoStore';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TodoItem, useTodoStore } from '../store/todoStore';
+import AutoSizingTextInput from './AutoSizingTextInput';
 
 const { width, height } = Dimensions.get('window');
 
@@ -35,6 +43,10 @@ interface ExpandedTodoCardProps {
   initialY: SharedValue<number>;
   initialWidth: SharedValue<number>;
   initialHeight: SharedValue<number>;
+  normalX: SharedValue<number>;
+  normalY: SharedValue<number>;
+  normalWidth: SharedValue<number>;
+  normalHeight: SharedValue<number>;
 }
 
 export default function ExpandedTodoCard({
@@ -45,13 +57,30 @@ export default function ExpandedTodoCard({
   initialY,
   initialWidth,
   initialHeight,
+  normalX,
+  normalY,
+  normalWidth,
+  normalHeight,
 }: ExpandedTodoCardProps) {
   const list = useTodoStore((state) =>
     state.lists.find((l) => l.id === listId)
   );
   const toggleTodo = useTodoStore((state) => state.toggleTodo);
+  const updateTodo = useTodoStore((state) => state.updateTodo);
+  const addTodoToList = useTodoStore((state) => state.addTodoToList);
+  const deleteTodo = useTodoStore((state) => state.deleteTodo);
+  const insets = useSafeAreaInsets();
+  const windowDimensions = useWindowDimensions();
 
-  const scale = useSharedValue(0);
+  // State for managing newly created items that need focus
+  const [newlyCreatedItemId, setNewlyCreatedItemId] = useState<string | null>(
+    null
+  );
+  const inputRefs = useRef<Map<string, TextInput>>(new Map());
+  const flatListRef = useAnimatedRef<Animated.FlatList<TodoItem>>();
+
+  const footerHeight = useSharedValue(windowDimensions.height * 0.7); // 70% of window height
+
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const opacity = useSharedValue(0);
@@ -59,6 +88,29 @@ export default function ExpandedTodoCard({
   const cardWidth = useSharedValue(0);
   const cardHeight = useSharedValue(0);
   const animationProgress = useSharedValue(0); // 0 = card state, 1 = expanded state
+
+  // Update footer height when window dimensions change
+  useEffect(() => {
+    footerHeight.value = windowDimensions.height * 0.7;
+  }, [windowDimensions.height, footerHeight]);
+
+  // Clean up refs when items are removed
+  useEffect(() => {
+    if (list) {
+      const currentItemIds = new Set(list.items.map((item) => item.id));
+      const refsToDelete: string[] = [];
+
+      inputRefs.current.forEach((_, itemId) => {
+        if (!currentItemIds.has(itemId)) {
+          refsToDelete.push(itemId);
+        }
+      });
+
+      refsToDelete.forEach((itemId) => {
+        inputRefs.current.delete(itemId);
+      });
+    }
+  }, [list]);
 
   useEffect(() => {
     // Start from grid item position and size using shared values
@@ -70,51 +122,54 @@ export default function ExpandedTodoCard({
     animationProgress.value = 0;
     opacity.value = 1;
 
-    // Animate to full screen
-    translateX.value = withSpring(0, { damping: 16, stiffness: 120 });
-    translateY.value = withSpring(0, { damping: 16, stiffness: 120 });
-    cardWidth.value = withSpring(width, { damping: 16, stiffness: 120 });
-    cardHeight.value = withSpring(height, { damping: 16, stiffness: 120 });
-    animationProgress.value = withSpring(1, { damping: 16, stiffness: 120 });
-    // Animate border radius to 0 only when fully expanded
-    borderRadius.value = withSpring(0, { damping: 16, stiffness: 120 });
-  }, []);
+    // Calculate expanded dimensions with only top safe area inset
+    const expandedWidth = width; // Full width
+    const expandedHeight = height - insets.top; // Only subtract top safe area
+    const expandedX = 0; // Full width from edge
+    const expandedY = insets.top; // Just under status bar
 
-  const dismiss = () => {
-    // Animate back to grid item position and size using shared values
-    translateX.value = withSpring(initialX.value, {
+    // Animate to card-like expanded state
+    translateX.value = withSpring(expandedX, { damping: 16, stiffness: 120 });
+    translateY.value = withSpring(expandedY, { damping: 16, stiffness: 120 });
+    cardWidth.value = withSpring(expandedWidth, {
       damping: 16,
       stiffness: 120,
     });
-    translateY.value = withSpring(initialY.value, {
+    cardHeight.value = withSpring(expandedHeight, {
       damping: 16,
       stiffness: 120,
     });
-    cardWidth.value = withSpring(initialWidth.value, {
-      damping: 16,
-      stiffness: 120,
-    });
-    cardHeight.value = withSpring(initialHeight.value, {
-      damping: 16,
-      stiffness: 120,
-    });
-    animationProgress.value = withSpring(
-      0,
-      { damping: 16, stiffness: 120 },
-      () => {
-        runOnJS(onDismiss)();
-      }
-    );
-    // Animate border radius back to 12 when dismissing
-    borderRadius.value = withSpring(12, { damping: 16, stiffness: 120 });
-  };
+    animationProgress.value = withSpring(1, { damping: 16, stiffness: 120 });
+    // Keep border radius when expanded to maintain card appearance
+    borderRadius.value = withSpring(24, { damping: 16, stiffness: 120 });
+  }, [
+    initialX.value,
+    initialY.value,
+    initialWidth.value,
+    initialHeight.value,
+    translateX,
+    translateY,
+    cardWidth,
+    cardHeight,
+    borderRadius,
+    animationProgress,
+    opacity,
+    insets.top,
+    insets.bottom,
+  ]);
 
   const panGesture = Gesture.Pan()
     .onUpdate((event) => {
       'worklet';
-      // Follow the drag directly
-      translateX.value = event.translationX;
-      translateY.value = event.translationY;
+      // Calculate expanded dimensions with only top safe area inset
+      const expandedWidth = width;
+      const expandedHeight = height - insets.top;
+      const expandedX = 0;
+      const expandedY = insets.top;
+
+      // Follow the drag directly from expanded position
+      translateX.value = expandedX + event.translationX;
+      translateY.value = expandedY + event.translationY;
 
       // Calculate progress based on drag distance
       const distance = Math.sqrt(
@@ -125,25 +180,36 @@ export default function ExpandedTodoCard({
 
       animationProgress.value = progress;
 
-      // Interpolate size and border radius based on progress
+      // Interpolate size based on progress
       cardWidth.value = interpolate(
         progress,
         [0, 1],
-        [initialWidth.value, width],
+        [normalWidth.value, expandedWidth],
         Extrapolation.CLAMP
       );
       cardHeight.value = interpolate(
         progress,
         [0, 1],
-        [initialHeight.value, height],
+        [normalHeight.value, expandedHeight],
         Extrapolation.CLAMP
       );
 
-      // Keep border radius at 12 when dragging
-      borderRadius.value = 12;
+      // Interpolate border radius based on progress
+      borderRadius.value = interpolate(
+        progress,
+        [0, 1],
+        [16, 24],
+        Extrapolation.CLAMP
+      );
     })
     .onEnd((event) => {
       'worklet';
+      // Calculate expanded dimensions with only top safe area inset
+      const expandedWidth = width;
+      const expandedHeight = height - insets.top;
+      const expandedX = 0;
+      const expandedY = insets.top;
+
       const distance = Math.sqrt(
         Math.pow(event.translationX, 2) + Math.pow(event.translationY, 2)
       );
@@ -154,23 +220,23 @@ export default function ExpandedTodoCard({
         Math.abs(event.velocityY) > 500;
 
       if (shouldDismiss) {
-        // Animate to grid position with overshoot then settle
-        translateX.value = withSpring(initialX.value, {
+        // Animate to normal card position with overshoot then settle
+        translateX.value = withSpring(normalX.value, {
           damping: 16,
           stiffness: 120,
         });
         translateY.value = withSpring(
-          initialY.value,
+          normalY.value,
           { damping: 16, stiffness: 120 },
           () => {
             runOnJS(onDismiss)();
           }
         );
-        cardWidth.value = withSpring(initialWidth.value, {
+        cardWidth.value = withSpring(normalWidth.value, {
           damping: 16,
           stiffness: 120,
         });
-        cardHeight.value = withSpring(initialHeight.value, {
+        cardHeight.value = withSpring(normalHeight.value, {
           damping: 16,
           stiffness: 120,
         });
@@ -178,20 +244,32 @@ export default function ExpandedTodoCard({
           damping: 16,
           stiffness: 120,
         });
-        // Keep border radius at 12 when dismissing
-        borderRadius.value = withSpring(12, { damping: 16, stiffness: 120 });
+        // Keep border radius at 16 when dismissing
+        borderRadius.value = withSpring(16, { damping: 16, stiffness: 120 });
       } else {
-        // Snap back to full screen with spring
-        translateX.value = withSpring(0, { damping: 16, stiffness: 140 });
-        translateY.value = withSpring(0, { damping: 16, stiffness: 140 });
-        cardWidth.value = withSpring(width, { damping: 16, stiffness: 120 });
-        cardHeight.value = withSpring(height, { damping: 16, stiffness: 120 });
+        // Snap back to expanded card position with spring
+        translateX.value = withSpring(expandedX, {
+          damping: 16,
+          stiffness: 140,
+        });
+        translateY.value = withSpring(expandedY, {
+          damping: 16,
+          stiffness: 140,
+        });
+        cardWidth.value = withSpring(expandedWidth, {
+          damping: 16,
+          stiffness: 120,
+        });
+        cardHeight.value = withSpring(expandedHeight, {
+          damping: 16,
+          stiffness: 120,
+        });
         animationProgress.value = withSpring(1, {
           damping: 16,
           stiffness: 120,
         });
-        // Animate border radius back to 0 when snapping back to full screen
-        borderRadius.value = withSpring(0, { damping: 16, stiffness: 120 });
+        // Keep border radius at 24 when snapping back to expanded state
+        borderRadius.value = withSpring(24, { damping: 16, stiffness: 120 });
       }
     });
 
@@ -205,7 +283,7 @@ export default function ExpandedTodoCard({
     backgroundColor: interpolateColor(
       animationProgress.value,
       [0, 1],
-      [list?.color || '#fff', '#fff']
+      ['#ffed85', '#fff']
     ),
     opacity: opacity.value,
   }));
@@ -222,26 +300,120 @@ export default function ExpandedTodoCard({
     opacity: interpolate(animationProgress.value, [0, 0.3], [1, 0]),
   }));
 
-  const renderTodoItem = ({ item }: { item: any }) => (
-    <Pressable
-      style={[styles.todoItem, item.completed && styles.completedTodo]}
-      onPress={() => toggleTodo(listId, item.id)}
-    >
-      <Text style={[styles.todoText, item.completed && styles.completedText]}>
-        {item.text}
-      </Text>
-    </Pressable>
-  );
+  const CheckboxComponent = ({
+    item,
+    itemIndex,
+  }: {
+    item: any;
+    itemIndex: number;
+  }) => {
+    const checkboxOpacity = useSharedValue(1);
 
-  const handleEditPress = () => {
-    // Use the screen center for expanded card editor
-    onEditList(listId, {
-      x: 300, // Approximate position for expanded card
-      y: 100,
-      width: 24,
-      height: 24,
-    });
+    const checkboxAnimatedStyle = useAnimatedStyle(() => ({
+      opacity: checkboxOpacity.value,
+    }));
+
+    const handleCheckboxPress = () => {
+      // Fade effect
+      checkboxOpacity.value = withTiming(0.3, { duration: 100 }, () => {
+        checkboxOpacity.value = withTiming(1, { duration: 100 });
+      });
+
+      // Toggle the todo
+      toggleTodo(listId, item.id);
+    };
+
+    return (
+      <Pressable onPress={handleCheckboxPress} hitSlop={8}>
+        <Animated.View
+          style={[
+            styles.checkbox,
+            item.completed && styles.checkboxCompleted,
+            checkboxAnimatedStyle,
+          ]}
+        >
+          {item.completed && <View style={styles.checkboxDot} />}
+        </Animated.View>
+      </Pressable>
+    );
   };
+
+  const renderTodoItem = ({ item, index }: { item: any; index: number }) => {
+    return (
+      <Animated.View>
+        <View style={styles.itemRow}>
+          <AutoSizingTextInput
+            ref={(ref) => {
+              if (ref) {
+                inputRefs.current.set(item.id, ref);
+                // Auto-focus if this is the newly created item
+                if (newlyCreatedItemId === item.id) {
+                  setTimeout(() => {
+                    ref.focus();
+                    setNewlyCreatedItemId(null); // Clear after focusing
+                  }, 100);
+                }
+              }
+            }}
+            style={[
+              styles.itemText,
+              item.completed && styles.itemTextCompleted,
+            ]}
+            value={item.text}
+            onChangeText={(text: string) => {
+              updateTodo(listId, item.id, { text });
+            }}
+            onBlur={() => {
+              // Delete the todo if it's empty when blurred
+              const trimmedText = item.text.trim();
+              if (trimmedText === '') {
+                deleteTodo(listId, item.id);
+              }
+            }}
+            minHeight={22}
+          />
+          <CheckboxComponent item={item} itemIndex={index} />
+        </View>
+      </Animated.View>
+    );
+  };
+
+  const handleAddNewTodo = () => {
+    addTodoToList(listId, '');
+
+    // Find the newly created item (it will be the last one)
+    const timeoutId = setTimeout(() => {
+      const currentList = useTodoStore
+        .getState()
+        .lists.find((l) => l.id === listId);
+      if (currentList && currentList.items.length > 0) {
+        const lastItem = currentList.items[currentList.items.length - 1];
+        setNewlyCreatedItemId(lastItem.id);
+      }
+    }, 50); // Small delay to ensure the item is added
+
+    // Cleanup timeout if component unmounts
+    return () => clearTimeout(timeoutId);
+  };
+
+  const animatedFooterStyle = useAnimatedStyle(() => ({
+    height: footerHeight.value,
+  }));
+
+  const addTodoPressableStyle = useAnimatedStyle(() => ({
+    paddingBottom: 50 + insets.bottom + 40, // Reduced from 100 to 50 to move text down 50px
+  }));
+
+  const renderFooter = () => (
+    <Animated.View style={[styles.addTodoArea, animatedFooterStyle]}>
+      <Animated.View style={[styles.addTodoPressable, addTodoPressableStyle]}>
+        <Pressable
+          style={styles.addTodoFillPressable}
+          onPress={handleAddNewTodo}
+        ></Pressable>
+      </Animated.View>
+    </Animated.View>
+  );
 
   if (!list) return null;
 
@@ -256,58 +428,57 @@ export default function ExpandedTodoCard({
               <Text style={styles.cardTitle} numberOfLines={2}>
                 {list.name}
               </Text>
-              <View style={styles.cardEditButton}>
-                <Text style={styles.cardEditIcon}>⋯</Text>
-              </View>
             </View>
 
             <View style={styles.cardItemsList}>
-              {list.items.slice(0, 3).map((item, itemIndex) => (
+              {list.items.map((item, itemIndex) => (
                 <View key={itemIndex} style={styles.cardItemRow}>
-                  <View
-                    style={[
-                      styles.cardCheckbox,
-                      item.completed && styles.cardCheckboxCompleted,
-                    ]}
-                  />
                   <Text
                     style={[
                       styles.cardItemText,
                       item.completed && styles.cardItemTextCompleted,
                     ]}
-                    numberOfLines={1}
                   >
                     {item.text}
                   </Text>
+                  <View
+                    style={[
+                      styles.cardCheckbox,
+                      item.completed && styles.cardCheckboxCompleted,
+                    ]}
+                  >
+                    {item.completed && <View style={styles.cardCheckboxDot} />}
+                  </View>
                 </View>
               ))}
-              {list.items.length > 3 && (
-                <Text style={styles.cardMoreItems}>
-                  +{list.items.length - 3} more
-                </Text>
-              )}
             </View>
           </Animated.View>
 
           {/* Expanded content (visible when expanded) */}
           <Animated.View style={[styles.expandedContent, contentOpacity]}>
-            <View style={styles.header}>
-              <Text style={styles.title}>{list.name}</Text>
-              <View style={styles.headerButtons}>
-                <Pressable onPress={handleEditPress} style={styles.editButton}>
-                  <Text style={styles.editText}>⋯</Text>
-                </Pressable>
-                <Pressable onPress={dismiss} style={styles.closeButton}>
-                  <Text style={styles.closeText}>×</Text>
-                </Pressable>
-              </View>
-            </View>
-            <FlatList
+            {/* <View style={styles.header}>
+              <Pressable onPress={dismiss} style={styles.backButton}>
+                <Ionicons name="chevron-back" size={24} color="#007AFF" />
+              </Pressable>
+              <AutoSizingTextInput
+                style={styles.title}
+                value={list.name}
+                onChangeText={(text: string) => {
+                  updateList(listId, { name: text });
+                }}
+                minHeight={24}
+                multiline={false}
+                placeholder="List title"
+              />
+            </View> */}
+            <Animated.FlatList
+              ref={flatListRef}
               data={list.items}
-              renderItem={renderTodoItem}
+              renderItem={({ item, index }) => renderTodoItem({ item, index })}
               keyExtractor={(item) => item.id}
               style={styles.todoList}
               contentContainerStyle={styles.todoListContent}
+              ListFooterComponent={renderFooter}
             />
           </Animated.View>
         </Animated.View>
@@ -348,16 +519,18 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     padding: 16,
+    paddingBottom: 12,
+    overflow: 'hidden',
     justifyContent: 'flex-start',
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   cardTitle: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#333',
     flex: 1,
@@ -376,13 +549,10 @@ const styles = StyleSheet.create({
     color: '#666',
     fontWeight: 'bold',
   },
-  cardItemsList: {
-    flex: 1,
-  },
+  cardItemsList: {},
   cardItemRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
+    paddingVertical: 4,
   },
   cardCheckbox: {
     width: 12,
@@ -390,20 +560,30 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1.5,
     borderColor: 'rgba(0, 0, 0, 0.2)',
-    marginRight: 8,
+    marginLeft: 8,
+    marginTop: 3,
   },
   cardCheckboxCompleted: {
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderColor: 'rgba(0, 0, 0, 0.6)',
+    // backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  cardCheckboxDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4ade80', // green-400
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -4 }, { translateY: -4 }],
   },
   cardItemText: {
-    fontSize: 18,
+    fontSize: 14,
     color: 'rgba(0, 0, 0, 0.7)',
     flex: 1,
   },
   cardItemTextCompleted: {
-    textDecorationLine: 'line-through',
-    color: 'rgba(0, 0, 0, 0.4)',
+    color: 'rgba(0, 0, 0, 0.3)',
   },
   cardMoreItems: {
     fontSize: 12,
@@ -423,43 +603,36 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
-    paddingTop: 60,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    paddingTop: 20, // Reduced since we're already accounting for safe area
     backgroundColor: 'transparent',
+  },
+  backButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    flex: 1,
+    marginHorizontal: 16,
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    textAlign: 'center',
   },
   editButton: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#e0e0e0',
     justifyContent: 'center',
     alignItems: 'center',
   },
   editText: {
     fontSize: 16,
-    color: '#666',
-  },
-  closeButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#e0e0e0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  closeText: {
-    fontSize: 20,
     color: '#666',
   },
   todoList: {
@@ -469,21 +642,64 @@ const styles = StyleSheet.create({
   todoListContent: {
     padding: 20,
   },
-  todoItem: {
-    backgroundColor: '#f9f9f9',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 10,
+  itemRow: {
+    flexDirection: 'row',
+    paddingVertical: 4,
   },
-  completedTodo: {
-    backgroundColor: '#e8f5e8',
+  checkbox: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: 'rgba(0, 0, 0, 0.2)',
+    marginLeft: 8,
+    marginTop: 3,
   },
-  todoText: {
+  checkboxCompleted: {
+    // backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  checkboxDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4ade80', // green-400
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -4 }, { translateY: -4 }],
+  },
+  itemText: {
     fontSize: 16,
-    color: '#333',
+    color: 'rgba(0, 0, 0, 0.7)',
+    flex: 1,
   },
-  completedText: {
-    textDecorationLine: 'line-through',
-    color: '#666',
+  itemTextCompleted: {
+    color: 'rgba(0, 0, 0, 0.3)',
+  },
+  addTodoArea: {
+    flex: 1,
+    justifyContent: 'flex-start',
+  },
+  addTodoPressable: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  addTodoFillPressable: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  addTodoFillSpace: {
+    flex: 1,
+  },
+  addTodoTextContainer: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  addTodoText: {
+    fontSize: 14,
+    color: 'rgba(0, 0, 0, 0.4)',
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
 });
