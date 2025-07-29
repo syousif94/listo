@@ -95,9 +95,9 @@ app.post('/chat/stream', async (c) => {
           messages: [
             {
               role: "system",
-              content: `You are an voice powered Todo List app called Listo. You should transform the user's transcript into professionally written lists of tasks.
+              content: `You are an voice powered Todo List app called Listo. You should transform the user's transcript into professionally written lists of tasks. When creating new lists, do not include the word "list" in the title unless the user explicitly says to call it that.
               
-              You should always respond with tool calls to create or update lists and tasks based on the transcript. The user will provide their entire list of tasks in addition to the transcript.
+              You should always respond with tool calls to create or update lists and tasks based on the transcript. The user will provide their entire existing list of tasks in addition to the transcript.
               `
             },
             {
@@ -110,14 +110,58 @@ app.post('/chat/stream', async (c) => {
               type: "function",
               function: {
                 name: "createListWithTasks",
-                description: "Create a new list with tasks",
+                description: "Create a new list with an optional list of tasks",
                 parameters: {
-                  title: "string",
-                  tasks: [
-                    {
-                      title: "string"
+                  type: "object",
+                  properties: {
+                    title: { type: "string" },
+                    tasks: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          text: { type: "string" },
+                          completed: { type: "boolean" },
+                          dueDate: { 
+                            type: "string",
+                            format: "date-time"
+                          }
+                        },
+                        required: ["text"]
+                      }
                     }
-                  ]
+                  },
+                  required: ["title"]
+                }
+              },
+             
+            },
+            {
+              type: "function",
+              function: {
+                name: "createTodosInList",
+                description: "Create todos in an existing list",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    listId: { type: "string" },
+                    todos: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          text: { type: "string" },
+                          completed: { type: "boolean" },
+                          dueDate: { 
+                            type: "string",
+                            format: "date-time"
+                          }
+                        },
+                        required: ["text"]
+                      }
+                    }
+                  },
+                  required: ["listId", "todos"]
                 }
               },
              
@@ -126,23 +170,70 @@ app.post('/chat/stream', async (c) => {
               type: "function",
               function: {
                 name: "renameList",
-                description: "Create a new list with tasks",
+                description: "Rename a list",
                 parameters: {
-                  title: "string",
-                  description: "string",
-                  tasks: [
-                    {
-                      title: "string"
-                    }
-                  ]
+                  type: "object",
+                  properties: {
+                    listId: { type: "string" },
+                    newTitle: { type: "string" },
+                  },
+                  required: ["listId", "newTitle"]
                 }
               },
              
             },
+            {
+              type: "function",
+              function: {
+                name: "updateTodo",
+                description: "Update a todo item by id",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    id: { type: "string" },
+                    text: { type: "string" },
+                    completed: { type: "boolean" },
+                    dueDate: { 
+                      type: "string",
+                      format: "date-time"
+                    }
+                  },
+                  required: ["id"]
+                },
+              },
+            },
+            {
+              type: "function",
+              function: {
+                name: "deleteTodo",
+                description: "Delete a todo item by id",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    id: { type: "string" }
+                  },
+                  required: ["id"]
+                },
+              },
+            },
+            {
+              type: "function",
+              function: {
+                name: "deleteList",
+                description: "Delete a list by id",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    listId: { type: "string" }
+                  },
+                  required: ["listId"]
+                },
+              },
+            },
           ],
-          model: "meta-llama/llama-4-scout-17b-16e-instruct",
+          model: "meta-llama/llama-4-maverick-17b-128e-instruct",
           temperature: 0,
-          max_completion_tokens: 1024,
+          max_completion_tokens: 4096,
           top_p: 1,
           stream: true,
           stop: null
@@ -179,9 +270,9 @@ app.post('/chat', async (c) => {
       messages: [
         {
           role: "system",
-          content: `You are an voice powered Todo List app called Listo. You should transform the user's transcript into professionally written lists of tasks. When creating new lists, do not include the word "list" in the title unless the user explicitly says to call it that.
+          content: `You are an voice powered Todo List app called Listo. You should transform the user's transcript into professionally written lists of tasks and action items. When creating new lists, do not include the word "list" in the title unless the user explicitly says to call it that.
           
-          You should always respond with tool calls to create or update lists and tasks based on the transcript. The user will provide their entire list of tasks in addition to the transcript.
+          You should always respond with tool calls to create or update lists and tasks based on the transcript. The user will provide their existing task lists in addition to the transcript.
           `
         },
         {
@@ -204,13 +295,49 @@ app.post('/chat', async (c) => {
                   items: {
                     type: "object",
                     properties: {
-                      title: { type: "string" }
-                    }
+                      text: { type: "string" },
+                      completed: { type: "boolean" },
+                      dueDate: { 
+                        type: "string",
+                        format: "date-time"
+                      }
+                    },
+                    required: ["text"]
                   }
                 },
                 
               },
               required: ["title"]
+            }
+          },
+         
+        },
+        {
+          type: "function",
+          function: {
+            name: "createTodosInList",
+            description: "Create todos in an existing list",
+            parameters: {
+              type: "object",
+              properties: {
+                listId: { type: "string" },
+                todos: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      text: { type: "string" },
+                      completed: { type: "boolean" },
+                      dueDate: { 
+                        type: "string",
+                        format: "date-time"
+                      }
+                    },
+                    required: ["text"]
+                  }
+                }
+              },
+              required: ["listId", "todos"]
             }
           },
          
@@ -226,15 +353,60 @@ app.post('/chat', async (c) => {
                 listId: { type: "string" },
                 newTitle: { type: "string" },
               },
-              
+              required: ["listId", "newTitle"]
             },
-            required: ["listId", "newTitle"]
           },
-         
         },
-        
+        {
+          type: "function",
+          function: {
+            name: "updateTodo",
+            description: "Update a todo item by id",
+            parameters: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                text: { type: "string" },
+                completed: { type: "boolean" },
+                dueDate: { 
+                  type: "string",
+                  format: "date-time"
+                }
+              },
+              required: ["id"]
+            },
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "deleteTodo",
+            description: "Delete a todo item by id",
+            parameters: {
+              type: "object",
+              properties: {
+                id: { type: "string" }
+              },
+              required: ["id"]
+            },
+          },
+        },
+        {
+          type: "function",
+          function: {
+            name: "deleteList",
+            description: "Delete a list by id",
+            parameters: {
+              type: "object",
+              properties: {
+                listId: { type: "string" }
+              },
+              required: ["listId"]
+            },
+          },
+        },
       ],
-      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+      model: "meta-llama/llama-4-maverick-17b-128e-instruct",
       temperature: 0,
       tool_choice: "auto",
       max_completion_tokens: 4096,
