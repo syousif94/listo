@@ -144,7 +144,12 @@ export async function processTranscriptWithChat(
     const currentLists = useTodoStore.getState().getCurrentListsString();
 
     // Prepend current lists to transcript
-    const fullTranscript = `${currentLists}\n\nNew request: ${transcript}`;
+    const fullTranscript = `<Existing-Lists>
+    ${currentLists}
+    </Existing-Lists>
+    <Transcript>
+    ${transcript}
+    </Transcript>`;
 
     console.log('📋 Full transcript with current lists:', fullTranscript);
 
@@ -222,11 +227,8 @@ export async function processTranscriptWithChat(
             break;
 
           case 'updateTodo':
-            store.updateTodoById(args.id, {
-              text: args.text,
-              completed: args.completed,
-              dueDate: args.dueDate,
-            });
+            console.log('Updating todo with args:', args);
+            store.updateTodoById(args.id, args);
             console.log(`✅ Updated todo: ${args.id}`);
             break;
 

@@ -219,6 +219,11 @@ export default function TodoListCard({
               <Text style={styles.title} numberOfLines={2}>
                 {list.name}
               </Text>
+              {list.items.length > 0 && (
+                <Text style={styles.todoCount}>
+                  {list.items.filter((item) => !item.completed).length}
+                </Text>
+              )}
               {/* <Animated.View ref={editButtonRef}>
                 <Pressable style={styles.editButton} onPress={handleEditPress}>
                   <Ionicons name="ellipsis-horizontal" size={16} color="#666" />
@@ -233,6 +238,13 @@ export default function TodoListCard({
                   key={itemIndex}
                   style={styles.itemRow}
                 >
+                  <View style={{ width: 16, paddingRight: 4, paddingTop: 3 }}>
+                    <Text
+                      style={{ fontSize: 8, color: '#666', textAlign: 'right' }}
+                    >
+                      •
+                    </Text>
+                  </View>
                   <Text
                     style={[
                       styles.itemText,
@@ -261,8 +273,8 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: 16,
-    padding: 16,
-    paddingBottom: 12,
+    // padding: 16,
+    paddingVertical: 12,
 
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -283,7 +295,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     flex: 1,
-    marginRight: 8,
+    marginLeft: 16,
+  },
+  todoCount: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(0, 0, 0, 0.6)',
+    marginRight: 16,
   },
   editButton: {
     width: 24,
@@ -306,6 +324,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0, 0, 0, 0.2)',
     marginLeft: 8,
     marginTop: 3,
+    marginRight: 16,
   },
   checkboxCompleted: {
     // backgroundColor: 'rgba(0, 0, 0, 0.6)',

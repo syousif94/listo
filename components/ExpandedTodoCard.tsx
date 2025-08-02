@@ -428,11 +428,23 @@ export default function ExpandedTodoCard({
               <Text style={styles.cardTitle} numberOfLines={2}>
                 {list.name}
               </Text>
+              {list.items.length > 0 && (
+                <Text style={styles.todoCount}>
+                  {list.items.filter((item) => !item.completed).length}
+                </Text>
+              )}
             </View>
 
             <View style={styles.cardItemsList}>
               {list.items.map((item, itemIndex) => (
                 <View key={itemIndex} style={styles.cardItemRow}>
+                  <View style={{ width: 16, paddingRight: 4, paddingTop: 3 }}>
+                    <Text
+                      style={{ fontSize: 8, color: '#666', textAlign: 'right' }}
+                    >
+                      •
+                    </Text>
+                  </View>
                   <Text
                     style={[
                       styles.cardItemText,
@@ -518,8 +530,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    padding: 16,
-    paddingBottom: 12,
+    paddingVertical: 12,
     overflow: 'hidden',
     justifyContent: 'flex-start',
   },
@@ -534,7 +545,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     flex: 1,
-    marginRight: 8,
+    marginLeft: 16,
+  },
+  todoCount: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(0, 0, 0, 0.6)',
+    marginRight: 16,
   },
   cardEditButton: {
     width: 24,
@@ -562,6 +579,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0, 0, 0, 0.2)',
     marginLeft: 8,
     marginTop: 3,
+    marginRight: 16,
   },
   cardCheckboxCompleted: {
     // backgroundColor: 'rgba(0, 0, 0, 0.6)',

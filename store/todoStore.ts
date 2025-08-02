@@ -143,6 +143,8 @@ export const useTodoStore = create<TodoStore>()(
           if (list) {
             const todo = list.items.find((item) => item.id === todoId);
             if (todo) {
+              const newTodo = { ...todo, ...updates };
+              console.log('Updating todo:', newTodo);
               Object.assign(todo, { ...todo, ...updates });
               list.updatedAt = new Date().toISOString();
             }
@@ -307,9 +309,13 @@ export const useTodoStore = create<TodoStore>()(
         set((state) => {
           // Find todo across all lists
           for (const list of state.lists) {
-            let todo = list.items.find((item) => item.id === todoId);
+            const todoIndex = list.items.findIndex(
+              (item) => item.id === todoId
+            );
+            let todo = list.items[todoIndex];
             if (todo) {
-              todo = { ...todo, ...updates };
+              list.items[todoIndex] = { ...todo, ...updates };
+              console.log('Updating todo:', updates, todo);
               list.updatedAt = new Date().toISOString();
               break;
             }
