@@ -1,6 +1,9 @@
 import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ContextMenuView } from 'react-native-ios-context-menu';
 import Animated, {
+  FadeInUp,
+  LinearTransition,
   measure,
   runOnJS,
   runOnUI,
@@ -55,6 +58,7 @@ export default function TodoListCard({
   const scale = useSharedValue(1);
   const opacity = useSharedValue(1);
   const toggleTodo = useTodoStore((state) => state.toggleTodo);
+  const deleteList = useTodoStore((state) => state.deleteList);
 
   const parentAnimatedRef = useAnimatedRef();
   const animatedRef = useAnimatedRef();
@@ -95,10 +99,10 @@ export default function TodoListCard({
           height: scaledMeasurement.height,
         },
         {
-          x: normalMeasurement.pageX,
-          y: normalMeasurement.pageY,
-          width: normalMeasurement.width,
-          height: normalMeasurement.height,
+          x: normalMeasurement.pageX + 4, // Offset by horizontal padding
+          y: normalMeasurement.pageY + 6, // Offset by vertical padding
+          width: normalMeasurement.width - 15, // Subtract horizontal padding from both sides
+          height: normalMeasurement.height - 12, // Subtract vertical padding from both sides
         }
       );
     })();
@@ -114,6 +118,13 @@ export default function TodoListCard({
 
   const handlePressOut = () => {
     scale.value = withTiming(1, { duration: 150 });
+  };
+
+  const handleMenuPress = (event: any) => {
+    const { nativeEvent } = event;
+    if (nativeEvent.actionKey === 'delete') {
+      deleteList(list.id);
+    }
   };
 
   const CheckboxComponent = ({
@@ -156,69 +167,103 @@ export default function TodoListCard({
 
   return (
     <Animated.View
-      style={[styles.container, { width }, animatedStyle]}
+      style={[styles.container, animatedStyle]}
       ref={parentAnimatedRef}
+      layout={LinearTransition}
+      entering={FadeInUp}
     >
-      <Pressable
-        style={[{ width }]}
-        onPress={handlePress}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        disabled={isExpanded}
-      >
-        <Animated.View
-          style={[
-            styles.card,
+      <ContextMenuView
+        style={[{ width, borderRadius: 16 }]}
+        previewConfig={{
+          previewWidth: width,
+          borderRadius: 16,
+        }}
+        menuConfig={{
+          menuTitle: list.name,
+          menuItems: [
             {
-              width,
-              minHeight: width, // 1:1 aspect ratio
-              backgroundColor: '#ffed85',
+              actionKey: 'delete',
+              actionTitle: 'Delete List',
+              icon: {
+                type: 'IMAGE_SYSTEM',
+                imageValue: {
+                  systemName: 'trash',
+                },
+              },
+              menuAttributes: ['destructive'],
             },
-            cardAnimatedStyle,
-          ]}
-          ref={animatedRef}
+          ],
+        }}
+        onPressMenuItem={handleMenuPress}
+      >
+        <Pressable
+          style={[{ width }]}
+          onPress={handlePress}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          disabled={isExpanded}
         >
-          <View style={styles.header}>
-            <Text style={styles.title} numberOfLines={2}>
-              {list.name}
-            </Text>
-            {/* <Animated.View ref={editButtonRef}>
-              <Pressable style={styles.editButton} onPress={handleEditPress}>
-                <Ionicons name="ellipsis-horizontal" size={16} color="#666" />
-              </Pressable>
-            </Animated.View> */}
-          </View>
+          <Animated.View
+            style={[
+              styles.card,
+              {
+                width,
+                minHeight: width, // 1:1 aspect ratio
+                backgroundColor: '#ffed85',
+              },
+              cardAnimatedStyle,
+            ]}
+            ref={animatedRef}
+          >
+            <View style={styles.header}>
+              <Text style={styles.title} numberOfLines={2}>
+                {list.name}
+              </Text>
+              {/* <Animated.View ref={editButtonRef}>
+                <Pressable style={styles.editButton} onPress={handleEditPress}>
+                  <Ionicons name="ellipsis-horizontal" size={16} color="#666" />
+                </Pressable>
+              </Animated.View> */}
+            </View>
 
-          <View style={styles.itemsList}>
-            {list.items.map((item, itemIndex) => (
-              <View key={itemIndex} style={styles.itemRow}>
-                <Text
-                  style={[
-                    styles.itemText,
-                    item.completed && styles.itemTextCompleted,
-                  ]}
+            <View style={styles.itemsList}>
+              {list.items.map((item, itemIndex) => (
+                <Animated.View
+                  layout={LinearTransition}
+                  key={itemIndex}
+                  style={styles.itemRow}
                 >
-                  {item.text}
-                </Text>
-                <CheckboxComponent item={item} itemIndex={itemIndex} />
-              </View>
-            ))}
-          </View>
-        </Animated.View>
-      </Pressable>
+                  <Text
+                    style={[
+                      styles.itemText,
+                      item.completed && styles.itemTextCompleted,
+                    ]}
+                  >
+                    {item.text}
+                  </Text>
+                  <CheckboxComponent item={item} itemIndex={itemIndex} />
+                </Animated.View>
+              ))}
+            </View>
+          </Animated.View>
+        </Pressable>
+      </ContextMenuView>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 12,
+    paddingHorizontal: 4,
+    paddingVertical: 6,
+    overflow: 'hidden',
+    borderRadius: 16,
   },
   card: {
-    backgroundColor: '#fff',
     borderRadius: 16,
     padding: 16,
     paddingBottom: 12,
+
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,

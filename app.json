@@ -67,10 +67,12 @@
         }
       ],
       "@config-plugins/ffmpeg-kit-react-native",
+      "expo-audio",
       [
-        "expo-audio",
+        "expo-speech-recognition",
         {
-          "microphonePermission": "Listo needs access to your microphone to record audio."
+          "microphonePermission": "$(PRODUCT_NAME) needs access to your microphone to record audio.",
+          "speechRecognitionPermission": "Allow $(PRODUCT_NAME) to use speech recognition."
         }
       ],
       [
@@ -78,7 +80,8 @@
         {
           "launchMode": "launcher"
         }
-      ]
+      ],
+      "expo-speech-recognition"
     ],
     "experiments": {
       "typedRoutes": true

@@ -1,6 +1,6 @@
 import { MasonryFlashList } from '@shopify/flash-list';
 import React, { useState } from 'react';
-import { Dimensions, StyleSheet, View } from 'react-native';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TodoList, useTodoStore } from '../store/todoStore';
@@ -13,10 +13,8 @@ function createTypedMasonryList<T>() {
 
 const ListsMasonryList = createTypedMasonryList<TodoList>();
 
-const { width } = Dimensions.get('window');
 const CARD_MARGIN = 12;
 const CARDS_PER_ROW = 2;
-const CARD_WIDTH = (width - CARD_MARGIN * (CARDS_PER_ROW + 1)) / CARDS_PER_ROW;
 
 interface TodoGridProps {
   onEditList: (
@@ -32,14 +30,18 @@ interface TodoGridProps {
 
 export default function TodoGrid({ onEditList }: TodoGridProps) {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const lists = useTodoStore((state) => state.lists);
   const [expandedListId, setExpandedListId] = useState<string | null>(null);
+
+  // Calculate dynamic card width
+  const cardWidth = (width - CARD_MARGIN * (CARDS_PER_ROW + 1)) / CARDS_PER_ROW;
 
   // Use shared values for card position
   const cardX = useSharedValue(0);
   const cardY = useSharedValue(0);
-  const cardWidth = useSharedValue(0);
-  const cardHeight = useSharedValue(0);
+  const animatedCardWidth = useSharedValue(0);
+  const animatedCardHeight = useSharedValue(0);
 
   // Use shared values for normal (dismiss) position
   const normalCardX = useSharedValue(0);
@@ -55,8 +57,8 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
     // Update shared values for scaled position (animation start)
     cardX.value = scaledPosition.x;
     cardY.value = scaledPosition.y;
-    cardWidth.value = scaledPosition.width;
-    cardHeight.value = scaledPosition.height;
+    animatedCardWidth.value = scaledPosition.width;
+    animatedCardHeight.value = scaledPosition.height;
 
     // Update shared values for normal position (dismiss target)
     normalCardX.value = normalPosition.x;
@@ -84,7 +86,7 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
     return (
       <TodoListCard
         list={item}
-        width={CARD_WIDTH}
+        width={cardWidth}
         isExpanded={isExpanded}
         onPress={(scaledPosition, normalPosition) =>
           handleCardPress(item.id, scaledPosition, normalPosition)
@@ -105,10 +107,9 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
         extraData={expandedListId}
         numColumns={CARDS_PER_ROW}
         contentContainerStyle={{
-          paddingTop: insets.top + 16,
-          paddingBottom: insets.bottom,
-          paddingLeft: CARD_MARGIN,
-          // paddingHorizontal: CARD_MARGIN,
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom + 120,
+          paddingLeft: 6.5,
         }}
         scrollEnabled={!expandedListId}
       />
@@ -120,8 +121,8 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
           onEditList={onEditList}
           initialX={cardX}
           initialY={cardY}
-          initialWidth={cardWidth}
-          initialHeight={cardHeight}
+          initialWidth={animatedCardWidth}
+          initialHeight={animatedCardHeight}
           normalX={normalCardX}
           normalY={normalCardY}
           normalWidth={normalCardWidth}
