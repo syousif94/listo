@@ -1,5 +1,6 @@
+import * as FileSystem from 'expo-file-system';
 import React, { useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { ContextMenuView } from 'react-native-ios-context-menu';
 import Animated, {
   FadeInUp,
@@ -120,10 +121,63 @@ export default function TodoListCard({
     scale.value = withTiming(1, { duration: 150 });
   };
 
+  const generateMarkdown = () => {
+    let markdown = `# ${list.name}\n\n`;
+
+    if (list.items.length === 0) {
+      markdown += '(No items)';
+    } else {
+      list.items.forEach((item) => {
+        const checkbox = item.completed ? '- [x]' : '- [ ]';
+        markdown += `${checkbox} ${item.text}\n`;
+      });
+    }
+
+    return markdown;
+  };
+
+  const shareList = async () => {
+    try {
+      const markdown = generateMarkdown();
+      // Clean the list name to be a valid filename
+      const sanitizedName = list.name.replace(/[^a-zA-Z0-9\s-_]/g, '').trim();
+      const filename = `${sanitizedName || 'todo-list'}.md`;
+
+      // Create a temporary file path
+      const tempDir = `${FileSystem.cacheDirectory}shared_lists/`;
+
+      // Create directory if it doesn't exist
+      await FileSystem.makeDirectoryAsync(tempDir, {
+        intermediates: true,
+      }).catch(() => {
+        console.log('Shared lists directory already exists');
+      });
+
+      const filePath = `${tempDir}${filename}`;
+
+      // Write the markdown content to the file
+      await FileSystem.writeAsStringAsync(filePath, markdown, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      console.log('Created markdown file at:', filePath);
+
+      // Share the file
+      await Share.share({
+        url: filePath,
+        title: filename,
+      });
+    } catch (error) {
+      console.error('Error sharing list:', error);
+    }
+  };
+
   const handleMenuPress = (event: any) => {
     const { nativeEvent } = event;
     if (nativeEvent.actionKey === 'delete') {
       deleteList(list.id);
+    } else if (nativeEvent.actionKey === 'share') {
+      shareList();
     }
   };
 
@@ -165,6 +219,50 @@ export default function TodoListCard({
     );
   };
 
+  const formatDueDate = (dueDate: string) => {
+    const date = new Date(dueDate);
+    const today = new Date();
+
+    // Reset time to start of day for accurate day comparison
+    today.setHours(0, 0, 0, 0);
+    date.setHours(0, 0, 0, 0);
+
+    const diffTime = date.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    const month = months[date.getMonth()];
+    const day = date.getDate().toString().padStart(2, '0');
+
+    let daysText = '';
+    if (diffDays === 0) {
+      daysText = 'today';
+    } else if (diffDays === 1) {
+      daysText = '1d';
+    } else if (diffDays === -1) {
+      daysText = '1d';
+    } else if (diffDays > 0) {
+      daysText = `${diffDays}d`;
+    } else {
+      daysText = `${Math.abs(diffDays)}d`;
+    }
+
+    return { dateText: `${month} ${day}`, daysText, isPastDue: diffDays < 0 };
+  };
+
   return (
     <Animated.View
       style={[styles.container, animatedStyle]}
@@ -181,6 +279,16 @@ export default function TodoListCard({
         menuConfig={{
           menuTitle: list.name,
           menuItems: [
+            {
+              actionKey: 'share',
+              actionTitle: 'Share List',
+              icon: {
+                type: 'IMAGE_SYSTEM',
+                imageValue: {
+                  systemName: 'square.and.arrow.up',
+                },
+              },
+            },
             {
               actionKey: 'delete',
               actionTitle: 'Delete List',
@@ -233,28 +341,49 @@ export default function TodoListCard({
 
             <View style={styles.itemsList}>
               {list.items.map((item, itemIndex) => (
-                <Animated.View
-                  layout={LinearTransition}
-                  key={itemIndex}
-                  style={styles.itemRow}
-                >
-                  <View style={{ width: 16, paddingRight: 4, paddingTop: 3 }}>
-                    <Text
-                      style={{ fontSize: 8, color: '#666', textAlign: 'right' }}
-                    >
-                      •
-                    </Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.itemText,
-                      item.completed && styles.itemTextCompleted,
-                    ]}
+                <View key={itemIndex}>
+                  <Animated.View
+                    layout={LinearTransition}
+                    style={styles.itemRow}
                   >
-                    {item.text}
-                  </Text>
-                  <CheckboxComponent item={item} itemIndex={itemIndex} />
-                </Animated.View>
+                    <View style={{ width: 16, paddingRight: 4, paddingTop: 3 }}>
+                      <Text
+                        style={{
+                          fontSize: 8,
+                          color: '#666',
+                          textAlign: 'right',
+                        }}
+                      >
+                        •
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.itemText,
+                        item.completed && styles.itemTextCompleted,
+                      ]}
+                    >
+                      {item.text}
+                    </Text>
+                    <CheckboxComponent item={item} itemIndex={itemIndex} />
+                  </Animated.View>
+                  {item.dueDate && (
+                    <View style={styles.cardDueDateRow}>
+                      <Text style={styles.cardDueDateText}>
+                        {formatDueDate(item.dueDate).dateText}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.cardDaysAwayText,
+                          formatDueDate(item.dueDate).isPastDue &&
+                            styles.cardPastDueText,
+                        ]}
+                      >
+                        {formatDueDate(item.dueDate).daysText}
+                      </Text>
+                    </View>
+                  )}
+                </View>
               ))}
             </View>
           </Animated.View>
@@ -270,6 +399,24 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     overflow: 'hidden',
     borderRadius: 16,
+  },
+  cardDueDateRow: {
+    paddingLeft: 20,
+    paddingTop: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  cardDueDateText: {
+    fontSize: 8,
+    color: 'rgba(0, 0, 0, 0.5)',
+  },
+  cardDaysAwayText: {
+    fontSize: 8,
+    color: 'rgba(0, 0, 0, 0.5)',
+  },
+  cardPastDueText: {
+    color: '#ef4444', // red-500
   },
   card: {
     borderRadius: 16,
