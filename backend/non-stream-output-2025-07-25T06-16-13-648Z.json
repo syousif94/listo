@@ -1,0 +1,45 @@
+{
+  "timestamp": "2025-07-25T06:16:13.648Z",
+  "transcript": "Create a grocery list: milk, bread, eggs, cheese, and apples",
+  "response": {
+    "id": "chatcmpl-4f04efd1-452c-4f61-9a2e-af0582e42c01",
+    "object": "chat.completion",
+    "created": 1753424173,
+    "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "scy7e4rzx",
+              "type": "function",
+              "function": {
+                "name": "createListWithTasks",
+                "arguments": "{\"tasks\":[{\"title\":\"milk\"},{\"title\":\"bread\"},{\"title\":\"eggs\"},{\"title\":\"cheese\"},{\"title\":\"apples\"}],\"title\":\"Grocery List\"}"
+              }
+            }
+          ]
+        },
+        "logprobs": null,
+        "finish_reason": "tool_calls"
+      }
+    ],
+    "usage": {
+      "queue_time": 0.212370451,
+      "prompt_tokens": 805,
+      "prompt_time": 0.028986165,
+      "completion_tokens": 66,
+      "completion_time": 0.153657798,
+      "total_tokens": 871,
+      "total_time": 0.182643963
+    },
+    "usage_breakdown": null,
+    "system_fingerprint": "fp_37da608fc1",
+    "x_groq": {
+      "id": "req_01k103k66pfvksrs2qmkrmxf87"
+    },
+    "service_tier": "on_demand"
+  }
+}
