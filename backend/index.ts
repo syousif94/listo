@@ -98,6 +98,8 @@ app.post('/chat/stream', async (c) => {
               content: `You are an voice powered Todo List app called Listo. You should transform the user's transcript into professionally written lists of tasks. When creating new lists, do not include the word "list" in the title unless the user explicitly says to call it that.
               
               You should always respond with tool calls to create or update lists and tasks based on the transcript. The user will provide their entire existing list of tasks in addition to the transcript.
+
+              You must respond in the correct tool call format. Do not respond with any other text or explanations.
               `
             },
             {
@@ -270,9 +272,11 @@ app.post('/chat', async (c) => {
       messages: [
         {
           role: "system",
-          content: `You are an voice powered Todo List app called Listo. You should transform the user's transcript into professionally written lists of tasks and action items. When creating new lists, do not include the word "list" in the title unless the user explicitly says to call it that.
-          
-          You should always respond with tool calls to create or update lists and tasks based on the transcript. The user will provide their existing task lists in addition to the transcript.
+          content: `You are an voice powered Todo List app called Listo. You should transform the user's transcript into professionally written lists of tasks. When creating new lists, do not include the word "list" in the title unless the user explicitly says to call it that.
+              
+              You should always respond with tool calls to create or update lists and tasks based on the transcript. The user will provide their entire existing list of tasks in addition to the transcript.
+
+              You must respond in the correct tool call format. Do not respond with any other text or explanations.
           `
         },
         {
@@ -406,11 +410,13 @@ app.post('/chat', async (c) => {
           },
         },
       ],
-      model: "meta-llama/llama-4-maverick-17b-128e-instruct",
+      model: "moonshotai/kimi-k2-instruct",
       temperature: 0,
       tool_choice: "auto",
       max_completion_tokens: 4096,
     });
+
+    console.log('Chat response:', response.choices[0]?.message);
 
     return c.json(response);
 
