@@ -1,0 +1,53 @@
+{
+  "timestamp": "2025-07-25T06:17:16.482Z",
+  "transcript": "I need to create a shopping list with milk, bread, eggs, and bananas. Also add a work list with finish project report, call client meeting, and review documents.",
+  "response": {
+    "id": "chatcmpl-bdba4bfc-2186-4599-b870-71e0f79bc547",
+    "object": "chat.completion",
+    "created": 1753424236,
+    "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "7hmy52brq",
+              "type": "function",
+              "function": {
+                "name": "createListWithTasks",
+                "arguments": "{\"tasks\":[{\"title\":\"milk\"},{\"title\":\"bread\"},{\"title\":\"eggs\"},{\"title\":\"bananas\"}],\"title\":\"Shopping List\"}"
+              }
+            },
+            {
+              "id": "g99ab0n5r",
+              "type": "function",
+              "function": {
+                "name": "createListWithTasks",
+                "arguments": "{\"tasks\":[{\"title\":\"finish project report\"},{\"title\":\"call client meeting\"},{\"title\":\"review documents\"}],\"title\":\"Work List\"}"
+              }
+            }
+          ]
+        },
+        "logprobs": null,
+        "finish_reason": "tool_calls"
+      }
+    ],
+    "usage": {
+      "queue_time": 0.208218352,
+      "prompt_tokens": 825,
+      "prompt_time": 0.026296634,
+      "completion_tokens": 109,
+      "completion_time": 0.248311425,
+      "total_tokens": 934,
+      "total_time": 0.274608059
+    },
+    "usage_breakdown": null,
+    "system_fingerprint": "fp_79da0e0073",
+    "x_groq": {
+      "id": "req_01k103n3f3fsqt4h4cmsrqv84h"
+    },
+    "service_tier": "on_demand"
+  }
+}
