@@ -156,21 +156,7 @@ export default function ExpandedTodoCard({
     animationProgress.value = withSpring(1, { damping: 16, stiffness: 120 });
     // Keep border radius when expanded to maintain card appearance
     borderRadius.value = withSpring(24, { damping: 16, stiffness: 120 });
-  }, [
-    initialX.value,
-    initialY.value,
-    initialWidth.value,
-    initialHeight.value,
-    translateX,
-    translateY,
-    cardWidth,
-    cardHeight,
-    borderRadius,
-    animationProgress,
-    opacity,
-    insets.top,
-    insets.bottom,
-  ]);
+  }, [height, width, insets]);
 
   const panGesture = Gesture.Pan()
     .onUpdate((event) => {
