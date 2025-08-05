@@ -1,9 +1,6 @@
 import { AntDesign, Feather } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, useWindowDimensions, View } from 'react-native';
-import AudioRecorderPlayer, {
-  RecordBackType,
-} from 'react-native-audio-recorder-player';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -13,7 +10,11 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { processRecordingComplete } from '../services/audioProcessingService';
+import {
+  speechRecognitionService,
+  type SpeechRecognitionResult,
+  type SpeechRecognitionState,
+} from '../services/speechRecognitionService';
 import AudioMeter from './AudioMeter';
 
 // Individual processing bar component
@@ -124,37 +125,36 @@ const StaticMeter: React.FC<{ maxHeight: number; color: string }> = ({
 
 enum RecordingState {
   IDLE = 'idle',
-  LOADING = 'loading',
-  RECORDING = 'recording',
-  PAUSED = 'paused',
-  STOPPING = 'stopping',
+  LISTENING = 'listening',
   PROCESSING = 'processing',
 }
 
 interface RecordingButtonProps {
-  onRecordingComplete?: (result: string) => void;
   onTranscriptionComplete?: (
     transcript: string,
     success: boolean,
     error?: string
   ) => void;
-  onMeteringUpdate?: (meteringValues: number[]) => void;
+  onVolumeUpdate?: (volume: number) => void;
   onProcessingComplete?: () => void;
   processingComplete?: boolean; // External trigger to complete processing
 }
 
 export default function RecordingButton({
-  onRecordingComplete,
   onTranscriptionComplete,
-  onMeteringUpdate,
+  onVolumeUpdate,
   onProcessingComplete,
   processingComplete,
 }: RecordingButtonProps) {
   const [recordingState, setRecordingState] = useState<RecordingState>(
     RecordingState.IDLE
   );
-  const [meteringValues, setMeteringValues] = useState<number[]>([]);
-  const [currentRecordingPath, setCurrentRecordingPath] = useState<string>('');
+  const [volumeLevel, setVolumeLevel] = useState<number>(0);
+  const [_currentTranscript, setCurrentTranscript] = useState<string>('');
+  // Add sliding window for volume samples (like the original implementation)
+  const [volumeSamples, setVolumeSamples] = useState<number[]>(
+    new Array(40).fill(-25)
+  );
 
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
@@ -165,12 +165,11 @@ export default function RecordingButton({
   // Opacity values for fade animations
   const recordViewOpacity = useSharedValue(1);
   const processingViewOpacity = useSharedValue(0);
-  const recordingViewOpacity = useSharedValue(0);
+  const listeningViewOpacity = useSharedValue(0);
 
   // Opacity values for pressable fade animations
   const checkButtonOpacity = useSharedValue(1);
   const closeButtonOpacity = useSharedValue(1);
-  const pauseButtonOpacity = useSharedValue(1);
   const mainButtonOpacity = useSharedValue(1);
 
   // Animated styles for fade transitions
@@ -182,8 +181,8 @@ export default function RecordingButton({
     opacity: processingViewOpacity.value,
   }));
 
-  const recordingViewAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: recordingViewOpacity.value,
+  const listeningViewAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: listeningViewOpacity.value,
   }));
 
   // Animated styles for pressable fade animations
@@ -195,20 +194,14 @@ export default function RecordingButton({
     opacity: closeButtonOpacity.value,
   }));
 
-  const pauseButtonAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: pauseButtonOpacity.value,
-  }));
-
   const mainButtonAnimatedStyle = useAnimatedStyle(() => ({
     opacity: mainButtonOpacity.value,
   }));
 
-  const audioRecorderPlayer = AudioRecorderPlayer;
-
   const handleProcessingComplete = useCallback(() => {
     setRecordingState(RecordingState.IDLE);
-    // Reset metering values to empty array
-    setMeteringValues([]);
+    setVolumeLevel(0);
+    setVolumeSamples(new Array(40).fill(-25)); // Reset volume samples
     // Animate back to idle state size (100px)
     width.value = withSpring(100, {
       damping: 15,
@@ -237,17 +230,108 @@ export default function RecordingButton({
     }
   }, [processingComplete, recordingState, handleProcessingComplete]);
 
-  const onStartRecord = async () => {
-    const emptyArray: number[] = [];
-    for (let i = 0; i < 40; i++) {
-      emptyArray.push(-160);
-    }
-    // Immediately set meter values to silence (-160 dB)
-    setMeteringValues(emptyArray);
-    onMeteringUpdate?.(emptyArray);
+  // Set up speech recognition callbacks
+  useEffect(() => {
+    speechRecognitionService.setCallbacks({
+      onStateChange: (state: SpeechRecognitionState) => {
+        console.log('🎤 Speech recognition state changed:', state);
 
-    // Immediately switch to recording state and show recording view
-    setRecordingState(RecordingState.RECORDING);
+        if (state.isListening) {
+          setRecordingState(RecordingState.LISTENING);
+        } else if (state.isProcessing) {
+          setRecordingState(RecordingState.PROCESSING);
+          // Animate to processing state
+          width.value = withSpring(54, {
+            damping: 25,
+            stiffness: 150,
+          });
+          height.value = withSpring(54, {
+            damping: 25,
+            stiffness: 150,
+          });
+          // Fade out listening view and fade in processing view
+          listeningViewOpacity.value = withTiming(0, { duration: 200 });
+          processingViewOpacity.value = withTiming(1, { duration: 200 });
+        } else {
+          setRecordingState(RecordingState.IDLE);
+        }
+
+        setCurrentTranscript(state.currentTranscript);
+      },
+      onVolumeChange: (volume: number) => {
+        setVolumeLevel(volume);
+
+        // Convert normalized volume (0-1) to dB scale for AudioMeter
+        // AudioMeter expects dB values roughly from -25 to 0 (or -160 to 0)
+        // Map 0-1 volume to -25 to 0 dB range for better visualization
+        const dbValue = volume * 25 - 25; // Convert 0-1 to -25 to 0 dB
+
+        // Update sliding window of volume samples (slide down, add new sample at end)
+        setVolumeSamples((prevSamples) => {
+          const newSamples = [...prevSamples.slice(1), dbValue];
+          return newSamples;
+        });
+
+        onVolumeUpdate?.(volume);
+      },
+      onTranscriptChange: (transcript: string, isFinal: boolean) => {
+        setCurrentTranscript(transcript);
+        console.log('🎤 Transcript update:', transcript, 'final:', isFinal);
+      },
+      onComplete: (result: SpeechRecognitionResult) => {
+        // Always reset to idle state when processing is complete
+        // regardless of success or failure
+        setRecordingState(RecordingState.IDLE);
+        setVolumeLevel(0);
+        setVolumeSamples(new Array(40).fill(-25));
+        setCurrentTranscript('');
+
+        // Animate back to collapsed state
+        width.value = withSpring(100, {
+          damping: 15,
+          stiffness: 150,
+        });
+        height.value = withSpring(54, {
+          damping: 15,
+          stiffness: 150,
+        });
+
+        // Reset view opacities
+        mainButtonOpacity.value = withTiming(1, { duration: 200 });
+        recordViewOpacity.value = withTiming(1, { duration: 200 });
+        listeningViewOpacity.value = withTiming(0, { duration: 200 });
+        processingViewOpacity.value = withTiming(0, { duration: 200 });
+
+        onTranscriptionComplete?.(
+          result.transcript,
+          result.success,
+          result.error
+        );
+      },
+    });
+
+    return () => {
+      // Cleanup on unmount
+      speechRecognitionService.dispose();
+    };
+  }, [
+    onTranscriptionComplete,
+    onVolumeUpdate,
+    width,
+    height,
+    mainButtonOpacity,
+    recordViewOpacity,
+    listeningViewOpacity,
+    processingViewOpacity,
+  ]);
+
+  const onStartListening = async () => {
+    setVolumeLevel(0);
+    setVolumeSamples(new Array(40).fill(-25)); // Reset volume samples
+    setCurrentTranscript('');
+
+    // Immediately switch to listening state and show listening view
+    setRecordingState(RecordingState.LISTENING);
     // Animate to expanded state with fade transitions
     width.value = withSpring(window.width - 64, {
       damping: 15,
@@ -257,34 +341,19 @@ export default function RecordingButton({
       damping: 15,
       stiffness: 150,
     });
-    // Fade out record view and fade in recording view
+    // Fade out record view and fade in listening view
     recordViewOpacity.value = withTiming(0, { duration: 200 });
-    recordingViewOpacity.value = withTiming(1, { duration: 200 });
+    listeningViewOpacity.value = withTiming(1, { duration: 200 });
 
     try {
-      const recordingPath = await audioRecorderPlayer.startRecorder(
-        undefined,
-        undefined,
-        true
-      );
-      setCurrentRecordingPath(recordingPath);
-      console.log('🎤 Recording started:', recordingPath);
-
-      audioRecorderPlayer.addRecordBackListener((e: RecordBackType) => {
-        // Track metering values (keep last 40 values)
-        if (e.currentMetering !== undefined) {
-          setMeteringValues((prev) => {
-            const newValues = [...prev, e.currentMetering as number];
-            console.log('Metering:', e.currentMetering);
-            const last40 = newValues.slice(-40); // Keep only last 40 values
-            onMeteringUpdate?.(last40);
-            return last40;
-          });
-        }
+      await speechRecognitionService.startListening({
+        continuous: true,
+        interimResults: true,
+        language: 'en-US',
       });
     } catch (error) {
-      console.error('Failed to start recording:', error);
-      // Revert to idle state if recording fails
+      console.error('Failed to start speech recognition:', error);
+      // Revert to idle state if recognition fails
       setRecordingState(RecordingState.IDLE);
       width.value = withSpring(100, {
         damping: 15,
@@ -294,122 +363,28 @@ export default function RecordingButton({
         damping: 15,
         stiffness: 150,
       });
-      recordingViewOpacity.value = withTiming(0, { duration: 200 });
+      listeningViewOpacity.value = withTiming(0, { duration: 200 });
       recordViewOpacity.value = withTiming(1, { duration: 200 });
     }
   };
 
-  const onPauseRecord = async () => {
+  const onStopListening = async () => {
     try {
-      await audioRecorderPlayer.pauseRecorder();
-      setRecordingState(RecordingState.PAUSED);
+      await speechRecognitionService.stopListening();
+      // State transitions will be handled by the speech recognition callbacks
     } catch (error) {
-      console.error('Failed to pause recording:', error);
-      setRecordingState(RecordingState.RECORDING);
+      console.error('Failed to stop speech recognition:', error);
     }
   };
 
-  const onResumeRecord = async () => {
+  const onCancelListening = async () => {
     try {
-      await audioRecorderPlayer.resumeRecorder();
-      setRecordingState(RecordingState.RECORDING);
-    } catch (error) {
-      console.error('Failed to resume recording:', error);
-      setRecordingState(RecordingState.PAUSED);
-    }
-  };
-
-  const onProcessRecord = async () => {
-    setRecordingState(RecordingState.STOPPING);
-
-    try {
-      const result = await audioRecorderPlayer.stopRecorder();
-      audioRecorderPlayer.removeRecordBackListener();
-      setRecordingState(RecordingState.PROCESSING);
-      // Animate to processing state size (50px width) with more damping
-      width.value = withSpring(54, {
-        damping: 25,
-        stiffness: 150,
-      });
-      height.value = withSpring(54, {
-        damping: 25,
-        stiffness: 150,
-      });
-      // Fade out recording view and fade in processing view
-      recordingViewOpacity.value = withTiming(0, { duration: 200 });
-      processingViewOpacity.value = withTiming(1, { duration: 200 });
-
-      // Call the old callback for backwards compatibility
-      onRecordingComplete?.(result);
-
-      // Start the complete processing pipeline
-      console.log('🚀 Starting complete processing pipeline...');
-      const processingResult = await processRecordingComplete(
-        currentRecordingPath || result
-      );
-
-      // Notify parent component with transcription result
-      onTranscriptionComplete?.(
-        processingResult.transcript,
-        processingResult.success,
-        processingResult.error
-      );
-
-      console.log('✅ Processing pipeline completed:', processingResult);
-
-      // Reset to idle state after processing completes
+      await speechRecognitionService.abortListening();
       setRecordingState(RecordingState.IDLE);
+      setVolumeLevel(0);
+      setVolumeSamples(new Array(40).fill(-25)); // Reset volume samples
+      setCurrentTranscript('');
 
-      // Animate back to collapsed state
-      width.value = withSpring(100, {
-        damping: 15,
-        stiffness: 150,
-      });
-      height.value = withSpring(54, {
-        damping: 25,
-        stiffness: 150,
-      });
-
-      // Fade out processing view and fade in record view
-      processingViewOpacity.value = withTiming(0, { duration: 200 });
-      recordViewOpacity.value = withTiming(1, { duration: 200 });
-    } catch (error) {
-      console.error('Failed to stop recording:', error);
-
-      // Reset to idle state on error
-      setRecordingState(RecordingState.IDLE);
-
-      // Animate back to collapsed state
-      width.value = withSpring(100, {
-        damping: 15,
-        stiffness: 150,
-      });
-      height.value = withSpring(54, {
-        damping: 25,
-        stiffness: 150,
-      });
-
-      // Fade out processing view and fade in record view
-      processingViewOpacity.value = withTiming(0, { duration: 200 });
-      recordViewOpacity.value = withTiming(1, { duration: 200 });
-
-      onTranscriptionComplete?.(
-        '',
-        false,
-        `Failed to process recording: ${error}`
-      );
-    }
-  };
-
-  const onDeleteRecord = async () => {
-    setRecordingState(RecordingState.STOPPING);
-
-    try {
-      await audioRecorderPlayer.stopRecorder();
-      audioRecorderPlayer.removeRecordBackListener();
-      setRecordingState(RecordingState.IDLE);
-      // Reset metering values to empty array
-      setMeteringValues([]);
       // Animate back to collapsed state
       width.value = withSpring(100, {
         damping: 15,
@@ -419,13 +394,11 @@ export default function RecordingButton({
         damping: 15,
         stiffness: 150,
       });
-      // Fade out recording view and fade in record view
-      recordingViewOpacity.value = withTiming(0, { duration: 200 });
+      // Fade out listening view and fade in record view
+      listeningViewOpacity.value = withTiming(0, { duration: 200 });
       recordViewOpacity.value = withTiming(1, { duration: 200 });
-      // Don't call onRecordingComplete since we're deleting
     } catch (error) {
-      console.error('Failed to delete recording:', error);
-      setRecordingState(RecordingState.RECORDING);
+      console.error('Failed to cancel speech recognition:', error);
     }
   };
   const handlePressIn = () => {
@@ -445,39 +418,15 @@ export default function RecordingButton({
   };
 
   const handlePress = () => {
-    if (
-      recordingState === RecordingState.LOADING ||
-      recordingState === RecordingState.STOPPING
-    ) {
-      return;
-    }
-
     switch (recordingState) {
       case RecordingState.IDLE:
-        onStartRecord();
+        onStartListening();
         break;
-      case RecordingState.RECORDING:
-        onPauseRecord();
-        break;
-      case RecordingState.PAUSED:
-        onResumeRecord();
+      case RecordingState.LISTENING:
+        onStopListening();
         break;
       case RecordingState.PROCESSING:
-        // Return to idle state when tapping during processing
-        setRecordingState(RecordingState.IDLE);
-        setMeteringValues([]);
-        // Animate back to idle size
-        width.value = withSpring(100, {
-          damping: 15,
-          stiffness: 150,
-        });
-        height.value = withSpring(54, {
-          damping: 15,
-          stiffness: 150,
-        });
-        // Fade out processing view and fade in record view
-        processingViewOpacity.value = withTiming(0, { duration: 200 });
-        recordViewOpacity.value = withTiming(1, { duration: 200 });
+        // No action during processing
         break;
     }
   };
@@ -526,8 +475,9 @@ export default function RecordingButton({
     );
   };
 
-  const renderRecordingView = () => {
-    const isPaused = recordingState === RecordingState.PAUSED;
+  const renderListeningView = () => {
+    // Use the actual sliding window of volume samples instead of generating fake ones
+    const volumeValues = [...volumeSamples]; // Use the real volume samples from the sliding window
 
     return (
       <Animated.View
@@ -540,79 +490,66 @@ export default function RecordingButton({
             flexDirection: 'row',
             paddingHorizontal: 16,
           },
-          recordingViewAnimatedStyle,
+          listeningViewAnimatedStyle,
         ]}
       >
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
           <View style={{ flex: 1, marginHorizontal: 16 }}>
             <AudioMeter
-              meteringValues={meteringValues}
+              meteringValues={volumeValues}
               barCount={40}
               maxHeight={40}
               color="white"
               opacity={1}
             />
           </View>
-        </View>
 
-        {/* During recording, show all controls */}
-        <>
-          <Pressable
-            onPress={onProcessRecord}
-            onPressIn={() => {
-              checkButtonOpacity.value = withTiming(0.5, { duration: 100 });
-            }}
-            onPressOut={() => {
-              checkButtonOpacity.value = withTiming(1, { duration: 100 });
-            }}
-            style={{ width: 60, alignItems: 'center' }}
-          >
-            <Animated.View style={checkButtonAnimatedStyle}>
-              <Feather name="check" size={24} color="white" />
-            </Animated.View>
-          </Pressable>
-          <Pressable
-            onPress={onDeleteRecord}
-            onPressIn={() => {
-              closeButtonOpacity.value = withTiming(0.5, { duration: 100 });
-            }}
-            onPressOut={() => {
-              closeButtonOpacity.value = withTiming(1, { duration: 100 });
-            }}
-            style={{ width: 60, alignItems: 'center' }}
-          >
-            <Animated.View style={closeButtonAnimatedStyle}>
-              <AntDesign name="close" size={24} color="white" />
-            </Animated.View>
-          </Pressable>
-          <Pressable
-            onPress={isPaused ? onResumeRecord : onPauseRecord}
-            onPressIn={() => {
-              pauseButtonOpacity.value = withTiming(0.5, { duration: 100 });
-            }}
-            onPressOut={() => {
-              pauseButtonOpacity.value = withTiming(1, { duration: 100 });
-            }}
-            style={{ width: 60, alignItems: 'center' }}
-          >
-            <Animated.View style={pauseButtonAnimatedStyle}>
-              {isPaused ? (
-                <View
-                  style={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: 6,
-                    backgroundColor: 'white',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                  }}
-                />
-              ) : (
+          {/* During listening, show all controls */}
+          <>
+            <Pressable
+              onPress={onStopListening}
+              onPressIn={() => {
+                checkButtonOpacity.value = withTiming(0.5, { duration: 100 });
+              }}
+              onPressOut={() => {
+                checkButtonOpacity.value = withTiming(1, { duration: 100 });
+              }}
+              style={{ width: 60, alignItems: 'center' }}
+            >
+              <Animated.View style={checkButtonAnimatedStyle}>
+                <Feather name="check" size={24} color="white" />
+              </Animated.View>
+            </Pressable>
+            <Pressable
+              onPress={onCancelListening}
+              onPressIn={() => {
+                closeButtonOpacity.value = withTiming(0.5, { duration: 100 });
+              }}
+              onPressOut={() => {
+                closeButtonOpacity.value = withTiming(1, { duration: 100 });
+              }}
+              style={{ width: 60, alignItems: 'center' }}
+            >
+              <Animated.View style={closeButtonAnimatedStyle}>
+                <AntDesign name="close" size={24} color="white" />
+              </Animated.View>
+            </Pressable>
+            <Pressable
+              onPress={onStopListening}
+              onPressIn={() => {
+                checkButtonOpacity.value = withTiming(0.5, { duration: 100 });
+              }}
+              onPressOut={() => {
+                checkButtonOpacity.value = withTiming(1, { duration: 100 });
+              }}
+              style={{ width: 60, alignItems: 'center' }}
+            >
+              <Animated.View style={checkButtonAnimatedStyle}>
                 <AntDesign name={'pause'} size={24} color="white" />
-              )}
-            </Animated.View>
-          </Pressable>
-        </>
+              </Animated.View>
+            </Pressable>
+          </>
+        </View>
       </Animated.View>
     );
   };
@@ -662,7 +599,7 @@ export default function RecordingButton({
             <View
               style={{ position: 'absolute', width: '100%', height: '100%' }}
             >
-              {renderRecordingView()}
+              {renderListeningView()}
             </View>
           </Animated.View>
         </Animated.View>

@@ -144,7 +144,12 @@ export async function processTranscriptWithChat(
     const currentLists = useTodoStore.getState().getCurrentListsString();
 
     // Prepend current lists to transcript
-    const fullTranscript = `${currentLists}\n\nNew request: ${transcript}`;
+    const fullTranscript = `<Existing-Lists>
+    ${currentLists}
+    </Existing-Lists>
+    <Transcript>
+    ${transcript}
+    </Transcript>`;
 
     console.log('📋 Full transcript with current lists:', fullTranscript);
 
@@ -197,13 +202,44 @@ export async function processTranscriptWithChat(
 
         switch (functionName) {
           case 'createListWithTasks':
-            store.createListWithTasks(args.title, args.tasks);
+            // Handle both 'text' and 'title' properties for backward compatibility
+            const normalizedTasks = args.tasks?.map((task: any) => ({
+              text: task.text || task.title,
+              completed: task.completed || false,
+              dueDate: task.dueDate,
+            }));
+            store.createListWithTasks(args.title, normalizedTasks);
             console.log(`✅ Created list: ${args.title}`);
+            break;
+
+          case 'createTodosInList':
+            store.createTodosInList(args.listId, args.todos);
+            console.log(
+              `✅ Added ${args.todos?.length || 0} todos to list: ${
+                args.listId
+              }`
+            );
             break;
 
           case 'renameList':
             store.renameList(args.listId, args.newTitle);
             console.log(`✅ Renamed list ${args.listId} to: ${args.newTitle}`);
+            break;
+
+          case 'updateTodo':
+            console.log('Updating todo with args:', args);
+            store.updateTodoById(args.id, args);
+            console.log(`✅ Updated todo: ${args.id}`);
+            break;
+
+          case 'deleteTodo':
+            store.deleteTodoById(args.id);
+            console.log(`✅ Deleted todo: ${args.id}`);
+            break;
+
+          case 'deleteList':
+            store.deleteList(args.listId);
+            console.log(`✅ Deleted list: ${args.listId}`);
             break;
 
           default:

@@ -1,27 +1,44 @@
-import React, { forwardRef, useState } from 'react';
-import { StyleSheet, TextInput, TextInputProps } from 'react-native';
+import React, { forwardRef } from 'react';
+import {
+  NativeSyntheticEvent,
+  StyleSheet,
+  TextInput,
+  TextInputContentSizeChangeEventData,
+  TextInputProps,
+} from 'react-native';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
 
 interface AutoSizingTextInputProps
   extends Omit<TextInputProps, 'onContentSizeChange'> {
   value: string;
   onChangeText: (text: string) => void;
   minHeight?: number;
+  onContentSizeChange?: (event: any) => void;
 }
 
-const AutoSizingTextInput = forwardRef<TextInput, AutoSizingTextInputProps>(
-  ({ value, onChangeText, style, minHeight = 22, ...props }, ref) => {
-    const [height, setHeight] = useState(minHeight);
+const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
-    const handleContentSizeChange = (event: any) => {
-      const newHeight = Math.max(
-        minHeight,
-        event.nativeEvent.contentSize.height
-      );
-      setHeight(newHeight);
+const AutoSizingTextInput = forwardRef<TextInput, AutoSizingTextInputProps>(
+  ({ value, onChangeText, style, onContentSizeChange, ...props }, ref) => {
+    const height = useSharedValue<number | undefined>(undefined);
+
+    const handleContentSizeChange = (
+      event: NativeSyntheticEvent<TextInputContentSizeChangeEventData>
+    ) => {
+      const newHeight = event.nativeEvent.contentSize.height;
+
+      height.value = newHeight;
     };
 
+    const animatedStyle = useAnimatedStyle(() => ({
+      height: height.value || undefined,
+    }));
+
     return (
-      <TextInput
+      <AnimatedTextInput
         {...props}
         ref={ref}
         value={value}
@@ -29,7 +46,7 @@ const AutoSizingTextInput = forwardRef<TextInput, AutoSizingTextInputProps>(
         onContentSizeChange={handleContentSizeChange}
         multiline={true}
         scrollEnabled={false}
-        style={[styles.textInput, { height }, style]}
+        style={[styles.textInput, style, animatedStyle]}
       />
     );
   }
@@ -42,6 +59,5 @@ export default AutoSizingTextInput;
 const styles = StyleSheet.create({
   textInput: {
     padding: 0,
-    textAlignVertical: 'top',
   },
 });

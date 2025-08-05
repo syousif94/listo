@@ -1,6 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import React, { useEffect, useRef } from 'react';
 import {
-  Dimensions,
+  PixelRatio,
   Pressable,
   StyleSheet,
   Text,
@@ -16,16 +18,18 @@ import Animated, {
   runOnJS,
   SharedValue,
   useAnimatedRef,
+  useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TodoItem, useTodoStore } from '../store/todoStore';
-import AutoSizingTextInput from './AutoSizingTextInput';
+import { useTodoStore } from '../store/todoStore';
+import NewTodoInput from './NewTodoInput';
+import TodoItemComponent from './TodoItem';
 
-const { width, height } = Dimensions.get('window');
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface ExpandedTodoCardProps {
   listId: string;
@@ -62,22 +66,18 @@ export default function ExpandedTodoCard({
   normalWidth,
   normalHeight,
 }: ExpandedTodoCardProps) {
+  const { height, width } = useWindowDimensions();
   const list = useTodoStore((state) =>
     state.lists.find((l) => l.id === listId)
   );
-  const toggleTodo = useTodoStore((state) => state.toggleTodo);
-  const updateTodo = useTodoStore((state) => state.updateTodo);
-  const addTodoToList = useTodoStore((state) => state.addTodoToList);
   const deleteTodo = useTodoStore((state) => state.deleteTodo);
+  const updateList = useTodoStore((state) => state.updateList);
   const insets = useSafeAreaInsets();
   const windowDimensions = useWindowDimensions();
 
   // State for managing newly created items that need focus
-  const [newlyCreatedItemId, setNewlyCreatedItemId] = useState<string | null>(
-    null
-  );
   const inputRefs = useRef<Map<string, TextInput>>(new Map());
-  const flatListRef = useAnimatedRef<Animated.FlatList<TodoItem>>();
+  const scrollViewRef = useAnimatedRef<Animated.ScrollView>();
 
   const footerHeight = useSharedValue(windowDimensions.height * 0.7); // 70% of window height
 
@@ -88,6 +88,20 @@ export default function ExpandedTodoCard({
   const cardWidth = useSharedValue(0);
   const cardHeight = useSharedValue(0);
   const animationProgress = useSharedValue(0); // 0 = card state, 1 = expanded state
+
+  // Header button animation states
+  const headerScale = useSharedValue(1);
+  const headerTextOpacity = useSharedValue(1);
+  const backButtonScale = useSharedValue(1);
+  const backButtonOpacity = useSharedValue(1);
+  const scrollY = useSharedValue(0);
+
+  // Scroll handler for header scaling
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
 
   // Update footer height when window dimensions change
   useEffect(() => {
@@ -142,21 +156,7 @@ export default function ExpandedTodoCard({
     animationProgress.value = withSpring(1, { damping: 16, stiffness: 120 });
     // Keep border radius when expanded to maintain card appearance
     borderRadius.value = withSpring(24, { damping: 16, stiffness: 120 });
-  }, [
-    initialX.value,
-    initialY.value,
-    initialWidth.value,
-    initialHeight.value,
-    translateX,
-    translateY,
-    cardWidth,
-    cardHeight,
-    borderRadius,
-    animationProgress,
-    opacity,
-    insets.top,
-    insets.bottom,
-  ]);
+  }, [height, width, insets]);
 
   const panGesture = Gesture.Pan()
     .onUpdate((event) => {
@@ -300,120 +300,121 @@ export default function ExpandedTodoCard({
     opacity: interpolate(animationProgress.value, [0, 0.3], [1, 0]),
   }));
 
-  const CheckboxComponent = ({
-    item,
-    itemIndex,
-  }: {
-    item: any;
-    itemIndex: number;
-  }) => {
-    const checkboxOpacity = useSharedValue(1);
-
-    const checkboxAnimatedStyle = useAnimatedStyle(() => ({
-      opacity: checkboxOpacity.value,
-    }));
-
-    const handleCheckboxPress = () => {
-      // Fade effect
-      checkboxOpacity.value = withTiming(0.3, { duration: 100 }, () => {
-        checkboxOpacity.value = withTiming(1, { duration: 100 });
-      });
-
-      // Toggle the todo
-      toggleTodo(listId, item.id);
-    };
-
-    return (
-      <Pressable onPress={handleCheckboxPress} hitSlop={8}>
-        <Animated.View
-          style={[
-            styles.checkbox,
-            item.completed && styles.checkboxCompleted,
-            checkboxAnimatedStyle,
-          ]}
-        >
-          {item.completed && <View style={styles.checkboxDot} />}
-        </Animated.View>
-      </Pressable>
-    );
-  };
-
-  const renderTodoItem = ({ item, index }: { item: any; index: number }) => {
-    return (
-      <Animated.View>
-        <View style={styles.itemRow}>
-          <AutoSizingTextInput
-            ref={(ref) => {
-              if (ref) {
-                inputRefs.current.set(item.id, ref);
-                // Auto-focus if this is the newly created item
-                if (newlyCreatedItemId === item.id) {
-                  setTimeout(() => {
-                    ref.focus();
-                    setNewlyCreatedItemId(null); // Clear after focusing
-                  }, 100);
-                }
-              }
-            }}
-            style={[
-              styles.itemText,
-              item.completed && styles.itemTextCompleted,
-            ]}
-            value={item.text}
-            onChangeText={(text: string) => {
-              updateTodo(listId, item.id, { text });
-            }}
-            onBlur={() => {
-              // Delete the todo if it's empty when blurred
-              const trimmedText = item.text.trim();
-              if (trimmedText === '') {
-                deleteTodo(listId, item.id);
-              }
-            }}
-            minHeight={22}
-          />
-          <CheckboxComponent item={item} itemIndex={index} />
-        </View>
-      </Animated.View>
-    );
-  };
-
-  const handleAddNewTodo = () => {
-    addTodoToList(listId, '');
-
-    // Find the newly created item (it will be the last one)
-    const timeoutId = setTimeout(() => {
-      const currentList = useTodoStore
-        .getState()
-        .lists.find((l) => l.id === listId);
-      if (currentList && currentList.items.length > 0) {
-        const lastItem = currentList.items[currentList.items.length - 1];
-        setNewlyCreatedItemId(lastItem.id);
-      }
-    }, 50); // Small delay to ensure the item is added
-
-    // Cleanup timeout if component unmounts
-    return () => clearTimeout(timeoutId);
-  };
-
   const animatedFooterStyle = useAnimatedStyle(() => ({
     height: footerHeight.value,
   }));
 
-  const addTodoPressableStyle = useAnimatedStyle(() => ({
-    paddingBottom: 50 + insets.bottom + 40, // Reduced from 100 to 50 to move text down 50px
+  // Header animated styles
+  const headerContainerStyle = useAnimatedStyle(() => {
+    const scale = interpolate(
+      scrollY.value,
+      [0, 100],
+      [1, 0.8],
+      Extrapolation.CLAMP
+    );
+
+    return {
+      transform: [{ scale: scale * headerScale.value }],
+    };
+  });
+
+  const headerBorderStyle = useAnimatedStyle(() => ({
+    borderColor: interpolateColor(
+      scrollY.value,
+      [0, 100],
+      ['rgba(0, 0, 0, 0.0)', 'rgba(0, 0, 0, 0.1)']
+    ),
+    shadowColor: interpolateColor(
+      scrollY.value,
+      [0, 100],
+      ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 1)']
+    ),
+  }));
+
+  const headerTextStyle = useAnimatedStyle(() => ({
+    opacity: headerTextOpacity.value,
+  }));
+
+  const backButtonStyle = useAnimatedStyle(() => {
+    const scale = interpolate(
+      scrollY.value,
+      [0, 100],
+      [1, 0.8],
+      Extrapolation.CLAMP
+    );
+
+    return {
+      transform: [
+        { translateX: -10 }, // Offset to maintain left alignment during scale
+        { scale: scale * backButtonScale.value },
+        { translateX: 10 },
+      ],
+      opacity: backButtonOpacity.value,
+    };
+  });
+
+  const backButtonBorderStyle = useAnimatedStyle(() => ({
+    borderColor: interpolateColor(
+      scrollY.value,
+      [0, 100],
+      ['rgba(0, 0, 0, 0.0)', 'rgba(0, 0, 0, 0.1)']
+    ),
+    shadowColor: interpolateColor(
+      scrollY.value,
+      [0, 100],
+      ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 1)']
+    ),
   }));
 
   const renderFooter = () => (
     <Animated.View style={[styles.addTodoArea, animatedFooterStyle]}>
-      <Animated.View style={[styles.addTodoPressable, addTodoPressableStyle]}>
-        <Pressable
-          style={styles.addTodoFillPressable}
-          onPress={handleAddNewTodo}
-        ></Pressable>
-      </Animated.View>
+      <NewTodoInput listId={listId} />
     </Animated.View>
   );
+
+  const formatDueDate = (dueDate: string) => {
+    const date = new Date(dueDate);
+    const today = new Date();
+
+    // Reset time to start of day for accurate day comparison
+    today.setHours(0, 0, 0, 0);
+    date.setHours(0, 0, 0, 0);
+
+    const diffTime = date.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    const month = months[date.getMonth()];
+    const day = date.getDate().toString().padStart(2, '0');
+
+    let daysText = '';
+    if (diffDays === 0) {
+      daysText = 'today';
+    } else if (diffDays === 1) {
+      daysText = '1d';
+    } else if (diffDays === -1) {
+      daysText = '1d';
+    } else if (diffDays > 0) {
+      daysText = `${diffDays}d`;
+    } else {
+      daysText = `${Math.abs(diffDays)}d`;
+    }
+
+    return { dateText: `${month} ${day}`, daysText, isPastDue: diffDays < 0 };
+  };
 
   if (!list) return null;
 
@@ -428,27 +429,63 @@ export default function ExpandedTodoCard({
               <Text style={styles.cardTitle} numberOfLines={2}>
                 {list.name}
               </Text>
+              {list.items.length > 0 && (
+                <Text style={styles.todoCount}>
+                  {list.items.filter((item) => !item.completed).length}
+                </Text>
+              )}
             </View>
 
             <View style={styles.cardItemsList}>
               {list.items.map((item, itemIndex) => (
-                <View key={itemIndex} style={styles.cardItemRow}>
-                  <Text
-                    style={[
-                      styles.cardItemText,
-                      item.completed && styles.cardItemTextCompleted,
-                    ]}
-                  >
-                    {item.text}
-                  </Text>
-                  <View
-                    style={[
-                      styles.cardCheckbox,
-                      item.completed && styles.cardCheckboxCompleted,
-                    ]}
-                  >
-                    {item.completed && <View style={styles.cardCheckboxDot} />}
+                <View key={itemIndex}>
+                  <View style={styles.cardItemRow}>
+                    <View style={{ width: 16, paddingRight: 4, paddingTop: 3 }}>
+                      <Text
+                        style={{
+                          fontSize: 8,
+                          color: '#666',
+                          textAlign: 'right',
+                        }}
+                      >
+                        •
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.cardItemText,
+                        item.completed && styles.cardItemTextCompleted,
+                      ]}
+                    >
+                      {item.text}
+                    </Text>
+                    <View
+                      style={[
+                        styles.cardCheckbox,
+                        item.completed && styles.cardCheckboxCompleted,
+                      ]}
+                    >
+                      {item.completed && (
+                        <View style={styles.cardCheckboxDot} />
+                      )}
+                    </View>
                   </View>
+                  {item.dueDate && (
+                    <View style={styles.cardDueDateRow}>
+                      <Text style={styles.cardDueDateText}>
+                        {formatDueDate(item.dueDate).dateText}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.cardDaysAwayText,
+                          formatDueDate(item.dueDate).isPastDue &&
+                            styles.cardPastDueText,
+                        ]}
+                      >
+                        {formatDueDate(item.dueDate).daysText}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               ))}
             </View>
@@ -456,30 +493,120 @@ export default function ExpandedTodoCard({
 
           {/* Expanded content (visible when expanded) */}
           <Animated.View style={[styles.expandedContent, contentOpacity]}>
-            {/* <View style={styles.header}>
-              <Pressable onPress={dismiss} style={styles.backButton}>
-                <Ionicons name="chevron-back" size={24} color="#007AFF" />
-              </Pressable>
-              <AutoSizingTextInput
-                style={styles.title}
-                value={list.name}
-                onChangeText={(text: string) => {
-                  updateList(listId, { name: text });
+            {/* Back Button */}
+            <Animated.View
+              style={[
+                styles.backButtonContainer,
+                contentOpacity,
+                backButtonStyle,
+              ]}
+            >
+              <AnimatedPressable
+                onPressIn={() => {
+                  backButtonScale.value = withSpring(0.95, {
+                    damping: 15,
+                    stiffness: 400,
+                  });
+                  backButtonOpacity.value = withTiming(0.6, { duration: 100 });
                 }}
-                minHeight={24}
-                multiline={false}
-                placeholder="List title"
-              />
-            </View> */}
-            <Animated.FlatList
-              ref={flatListRef}
-              data={list.items}
-              renderItem={({ item, index }) => renderTodoItem({ item, index })}
-              keyExtractor={(item) => item.id}
+                onPressOut={() => {
+                  backButtonScale.value = withSpring(1, {
+                    damping: 15,
+                    stiffness: 400,
+                  });
+                  backButtonOpacity.value = withTiming(1, { duration: 100 });
+                }}
+                onPress={() => {
+                  // Animate back to normal position with spring
+                  translateX.value = withSpring(normalX.value, {
+                    damping: 16,
+                    stiffness: 120,
+                  });
+                  translateY.value = withSpring(
+                    normalY.value,
+                    { damping: 16, stiffness: 120 },
+                    () => {
+                      runOnJS(onDismiss)();
+                    }
+                  );
+                  cardWidth.value = withSpring(normalWidth.value, {
+                    damping: 16,
+                    stiffness: 120,
+                  });
+                  cardHeight.value = withSpring(normalHeight.value, {
+                    damping: 16,
+                    stiffness: 120,
+                  });
+                  animationProgress.value = withSpring(0, {
+                    damping: 16,
+                    stiffness: 120,
+                  });
+                  borderRadius.value = withSpring(16, {
+                    damping: 16,
+                    stiffness: 120,
+                  });
+                }}
+                style={[styles.backButton, backButtonBorderStyle]}
+              >
+                <BlurView intensity={80} style={styles.backButtonBlur}>
+                  <Ionicons name="chevron-back" size={20} color="#007AFF" />
+                </BlurView>
+              </AnimatedPressable>
+            </Animated.View>
+
+            {/* Floating Header with Text Input */}
+            <Animated.View
+              style={[
+                styles.floatingHeaderContainer,
+                contentOpacity,
+                headerContainerStyle,
+              ]}
+            >
+              <Animated.View style={[styles.floatingHeader, headerBorderStyle]}>
+                <BlurView intensity={80} style={styles.blurContainer}>
+                  <Animated.View style={headerTextStyle}>
+                    <TextInput
+                      style={styles.headerTextInput}
+                      value={list?.name || ''}
+                      onChangeText={(text) =>
+                        updateList(listId, { name: text })
+                      }
+                      placeholder="List title"
+                      placeholderTextColor="rgba(51, 51, 51, 0.5)"
+                      multiline={false}
+                      textAlign="center"
+                    />
+                  </Animated.View>
+                </BlurView>
+              </Animated.View>
+            </Animated.View>
+
+            <Animated.ScrollView
+              ref={scrollViewRef}
               style={styles.todoList}
-              contentContainerStyle={styles.todoListContent}
-              ListFooterComponent={renderFooter}
-            />
+              contentContainerStyle={[
+                styles.todoListContent,
+                { paddingTop: 60 },
+              ]}
+              showsVerticalScrollIndicator={false}
+              onScroll={scrollHandler}
+              scrollEventThrottle={16}
+            >
+              {list.items.map((item, index) => (
+                <TodoItemComponent
+                  key={item.id}
+                  // ref={(ref) => {
+                  //   if (ref) {
+                  //     inputRefs.current.set(item.id, ref);
+                  //   }
+                  // }}
+                  item={item}
+                  listId={listId}
+                  onDeleteEmpty={(itemId) => deleteTodo(listId, itemId)}
+                />
+              ))}
+              {renderFooter()}
+            </Animated.ScrollView>
           </Animated.View>
         </Animated.View>
       </GestureDetector>
@@ -494,6 +621,24 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+  },
+  cardDueDateRow: {
+    paddingLeft: 20,
+    paddingTop: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  cardDueDateText: {
+    fontSize: 8,
+    color: 'rgba(0, 0, 0, 0.5)',
+  },
+  cardDaysAwayText: {
+    fontSize: 8,
+    color: 'rgba(0, 0, 0, 0.5)',
+  },
+  cardPastDueText: {
+    color: '#ef4444', // red-500
   },
   backdrop: {
     position: 'absolute',
@@ -518,8 +663,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    padding: 16,
-    paddingBottom: 12,
+    paddingVertical: 12,
     overflow: 'hidden',
     justifyContent: 'flex-start',
   },
@@ -534,7 +678,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     flex: 1,
-    marginRight: 8,
+    marginLeft: 16,
+  },
+  todoCount: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(0, 0, 0, 0.6)',
+    marginRight: 16,
   },
   cardEditButton: {
     width: 24,
@@ -562,6 +712,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0, 0, 0, 0.2)',
     marginLeft: 8,
     marginTop: 3,
+    marginRight: 16,
   },
   cardCheckboxCompleted: {
     // backgroundColor: 'rgba(0, 0, 0, 0.6)',
@@ -606,13 +757,6 @@ const styles = StyleSheet.create({
     paddingTop: 20, // Reduced since we're already accounting for safe area
     backgroundColor: 'transparent',
   },
-  backButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
@@ -639,67 +783,77 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'transparent',
   },
-  todoListContent: {
-    padding: 20,
-  },
-  itemRow: {
-    flexDirection: 'row',
-    paddingVertical: 4,
-  },
-  checkbox: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: 'rgba(0, 0, 0, 0.2)',
-    marginLeft: 8,
-    marginTop: 3,
-  },
-  checkboxCompleted: {
-    // backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    borderColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  checkboxDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#4ade80', // green-400
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: [{ translateX: -4 }, { translateY: -4 }],
-  },
-  itemText: {
-    fontSize: 16,
-    color: 'rgba(0, 0, 0, 0.7)',
-    flex: 1,
-  },
-  itemTextCompleted: {
-    color: 'rgba(0, 0, 0, 0.3)',
-  },
+  todoListContent: {},
   addTodoArea: {
     flex: 1,
     justifyContent: 'flex-start',
   },
-  addTodoPressable: {
-    flex: 1,
-    justifyContent: 'flex-end',
+  backButtonContainer: {
+    position: 'absolute',
+    top: 12,
+    left: 20,
+    zIndex: 1001,
   },
-  addTodoFillPressable: {
-    flex: 1,
-    justifyContent: 'flex-end',
+  backButton: {
+    borderRadius: 20,
+    borderWidth: 1 / PixelRatio.get(),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  addTodoFillSpace: {
-    flex: 1,
-  },
-  addTodoTextContainer: {
+  backButtonBlur: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
-    paddingVertical: 8,
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
-  addTodoText: {
-    fontSize: 14,
-    color: 'rgba(0, 0, 0, 0.4)',
-    fontStyle: 'italic',
+  floatingHeaderContainer: {
+    position: 'absolute',
+    top: 12,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    alignItems: 'center',
+  },
+  floatingHeader: {
+    borderRadius: 20,
+    borderWidth: 1 / PixelRatio.get(),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  blurContainer: {
+    height: 40,
+    width: '100%',
+    borderRadius: 20,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  floatingHeaderText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  headerTextInput: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
     textAlign: 'center',
+    minWidth: 120,
+    paddingHorizontal: 8,
+    paddingVertical: 0,
+    backgroundColor: 'transparent',
   },
 });

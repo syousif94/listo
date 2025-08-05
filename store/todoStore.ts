@@ -59,8 +59,17 @@ interface TodoStore {
   updateAudioProcessing: (updates: Partial<AudioProcessingState>) => void;
   resetAudioProcessing: () => void;
   getCurrentListsString: () => string;
-  createListWithTasks: (title: string, tasks?: { title: string }[]) => void;
+  createListWithTasks: (
+    title: string,
+    tasks?: { text: string; completed?: boolean; dueDate?: string }[]
+  ) => void;
+  createTodosInList: (
+    listId: string,
+    todos: { text: string; completed?: boolean; dueDate?: string }[]
+  ) => void;
   renameList: (listId: string, newTitle: string) => void;
+  updateTodoById: (todoId: string, updates: Partial<TodoItem>) => void;
+  deleteTodoById: (todoId: string) => void;
 }
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -134,7 +143,9 @@ export const useTodoStore = create<TodoStore>()(
           if (list) {
             const todo = list.items.find((item) => item.id === todoId);
             if (todo) {
-              Object.assign(todo, updates);
+              const newTodo = { ...todo, ...updates };
+              console.log('Updating todo:', newTodo);
+              Object.assign(todo, { ...todo, ...updates });
               list.updatedAt = new Date().toISOString();
             }
           }
@@ -225,18 +236,21 @@ export const useTodoStore = create<TodoStore>()(
                 : list.items
                     .map(
                       (item) =>
-                        `${item.completed ? '✓' : '○'} ${item.text}${
-                          item.dueDate ? ` (due: ${item.dueDate})` : ''
-                        }`
+                        `${item.completed ? '✓' : '○'} ${item.text} (id: ${
+                          item.id
+                        })${item.dueDate ? ` (due: ${item.dueDate})` : ''}`
                     )
                     .join(', ');
 
-            return `${list.name} (${list.items.length} items, color: ${list.color}): ${itemsStr}`;
+            return `${list.name} (id: ${list.id}, ${list.items.length} items, color: ${list.color}): ${itemsStr}`;
           })
           .join(' | ');
       },
 
-      createListWithTasks: (title: string, tasks?: { title: string }[]) =>
+      createListWithTasks: (
+        title: string,
+        tasks?: { text: string; completed?: boolean; dueDate?: string }[]
+      ) =>
         set((state) => {
           const now = new Date().toISOString();
           const newList: TodoList = {
@@ -252,9 +266,10 @@ export const useTodoStore = create<TodoStore>()(
           if (tasks && tasks.length > 0) {
             newList.items = tasks.map((task) => ({
               id: generateId(),
-              text: task.title,
-              completed: false,
+              text: task.text,
+              completed: task.completed || false,
               createdAt: now,
+              dueDate: task.dueDate,
             }));
           }
 
@@ -267,6 +282,58 @@ export const useTodoStore = create<TodoStore>()(
           if (list) {
             list.name = newTitle;
             list.updatedAt = new Date().toISOString();
+          }
+        }),
+
+      createTodosInList: (
+        listId: string,
+        todos: { text: string; completed?: boolean; dueDate?: string }[]
+      ) =>
+        set((state) => {
+          const list = state.lists.find((l) => l.id === listId);
+          if (list) {
+            const now = new Date().toISOString();
+            const newTodos = todos.map((todo) => ({
+              id: generateId(),
+              text: todo.text,
+              completed: todo.completed || false,
+              createdAt: now,
+              dueDate: todo.dueDate,
+            }));
+            list.items.push(...newTodos);
+            list.updatedAt = now;
+          }
+        }),
+
+      updateTodoById: (todoId: string, updates: Partial<TodoItem>) =>
+        set((state) => {
+          // Find todo across all lists
+          for (const list of state.lists) {
+            const todoIndex = list.items.findIndex(
+              (item) => item.id === todoId
+            );
+            let todo = list.items[todoIndex];
+            if (todo) {
+              list.items[todoIndex] = { ...todo, ...updates };
+              console.log('Updating todo:', updates, todo);
+              list.updatedAt = new Date().toISOString();
+              break;
+            }
+          }
+        }),
+
+      deleteTodoById: (todoId: string) =>
+        set((state) => {
+          // Find and delete todo across all lists
+          for (const list of state.lists) {
+            const todoIndex = list.items.findIndex(
+              (item) => item.id === todoId
+            );
+            if (todoIndex !== -1) {
+              list.items.splice(todoIndex, 1);
+              list.updatedAt = new Date().toISOString();
+              break;
+            }
           }
         }),
     })),

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "listo",
+    "name": "Listo",
     "slug": "listo",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,7 +11,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.syousif.listo",
-      "usesAppleSignIn": true
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition.",
+        "NSMicrophoneUsageDescription": "$(PRODUCT_NAME) needs access to your microphone to record audio."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -67,10 +71,12 @@
         }
       ],
       "@config-plugins/ffmpeg-kit-react-native",
+      "expo-audio",
       [
-        "expo-audio",
+        "expo-speech-recognition",
         {
-          "microphonePermission": "Listo needs access to your microphone to record audio."
+          "microphonePermission": "$(PRODUCT_NAME) needs access to your microphone to record audio.",
+          "speechRecognitionPermission": "Allow $(PRODUCT_NAME) to use speech recognition."
         }
       ],
       [
@@ -78,10 +84,21 @@
         {
           "launchMode": "launcher"
         }
-      ]
+      ],
+      "expo-speech-recognition"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2d5bdba1-9db9-4152-a022-987f44946d3e"
+      }
+    },
+    "runtimeVersion": "1.0.0",
+    "updates": {
+      "url": "https://u.expo.dev/2d5bdba1-9db9-4152-a022-987f44946d3e"
     }
   }
 }
