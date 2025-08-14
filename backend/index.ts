@@ -29,7 +29,7 @@ const authMiddleware = async (c: any, next: any) => {
 
   const token = authorization.substring(7);
   const user = await verifySession(token);
-  
+
   if (!user) {
     return c.json({ error: 'Invalid or expired session' }, 401);
   }
@@ -47,14 +47,14 @@ app.get('/', (c) => {
 app.post('/auth/apple', async (c) => {
   try {
     const { identityToken, authorizationCode } = await c.req.json();
-    
+
     if (!identityToken) {
       return c.json({ error: 'Identity token is required' }, 400);
     }
 
     // Verify Apple token
     const applePayload = await verifyAppleToken(identityToken);
-    
+
     // Create user session
     const { user, token } = await createUserSession(
       applePayload.sub,
@@ -80,8 +80,8 @@ app.post('/auth/apple', async (c) => {
 // Protected route for transcript processing (streaming)
 app.post('/chat/stream', async (c) => {
   try {
-    const { transcript } = await c.req.json();
-    
+    const { transcript, userTime } = await c.req.json();
+
     if (!transcript) {
       return c.json({ error: 'Transcript is required' }, 400);
     }
@@ -94,155 +94,154 @@ app.post('/chat/stream', async (c) => {
         const chatCompletion = await groq.chat.completions.create({
           messages: [
             {
-              role: "system",
+              role: 'system',
               content: `You are an voice powered Todo List app called Listo. You should transform the user's transcript into professionally written lists of tasks. When creating new lists, do not include the word "list" in the title unless the user explicitly says to call it that.
               
               You should always respond with tool calls to create or update lists and tasks based on the transcript. The user will provide their entire existing list of tasks in addition to the transcript.
 
               You must respond in the correct tool call format. Do not respond with any other text or explanations.
-              `
+
+              The current user's time and date is ${userTime}.
+              `,
             },
             {
-              role: "user",
-              content: transcript
-            }
+              role: 'user',
+              content: transcript,
+            },
           ],
           tools: [
             {
-              type: "function",
+              type: 'function',
               function: {
-                name: "createListWithTasks",
-                description: "Create a new list with an optional list of tasks",
+                name: 'createListWithTasks',
+                description: 'Create a new list with an optional list of tasks',
                 parameters: {
-                  type: "object",
+                  type: 'object',
                   properties: {
-                    title: { type: "string" },
+                    title: { type: 'string' },
                     tasks: {
-                      type: "array",
+                      type: 'array',
                       items: {
-                        type: "object",
+                        type: 'object',
                         properties: {
-                          text: { type: "string" },
-                          completed: { type: "boolean" },
-                          dueDate: { 
-                            type: "string",
-                            format: "date-time"
-                          }
+                          text: { type: 'string' },
+                          completed: { type: 'boolean' },
+                          dueDate: {
+                            type: 'string',
+                            format: 'date-time',
+                          },
                         },
-                        required: ["text"]
-                      }
-                    }
+                        required: ['text'],
+                      },
+                    },
                   },
-                  required: ["title"]
-                }
+                  required: ['title'],
+                },
               },
-             
             },
             {
-              type: "function",
+              type: 'function',
               function: {
-                name: "createTodosInList",
-                description: "Create todos in an existing list",
+                name: 'createTodosInList',
+                description: 'Create todos in an existing list',
                 parameters: {
-                  type: "object",
+                  type: 'object',
                   properties: {
-                    listId: { type: "string" },
+                    listId: { type: 'string' },
                     todos: {
-                      type: "array",
+                      type: 'array',
                       items: {
-                        type: "object",
+                        type: 'object',
                         properties: {
-                          text: { type: "string" },
-                          completed: { type: "boolean" },
-                          dueDate: { 
-                            type: "string",
-                            format: "date-time"
-                          }
+                          text: { type: 'string' },
+                          completed: { type: 'boolean' },
+                          dueDate: {
+                            type: 'string',
+                            format: 'date-time',
+                          },
                         },
-                        required: ["text"]
-                      }
-                    }
+                        required: ['text'],
+                      },
+                    },
                   },
-                  required: ["listId", "todos"]
-                }
-              },
-             
-            },
-            {
-              type: "function",
-              function: {
-                name: "renameList",
-                description: "Rename a list",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    listId: { type: "string" },
-                    newTitle: { type: "string" },
-                  },
-                  required: ["listId", "newTitle"]
-                }
-              },
-             
-            },
-            {
-              type: "function",
-              function: {
-                name: "updateTodo",
-                description: "Update a todo item by id",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    id: { type: "string" },
-                    text: { type: "string" },
-                    completed: { type: "boolean" },
-                    dueDate: { 
-                      type: "string",
-                      format: "date-time"
-                    }
-                  },
-                  required: ["id"]
+                  required: ['listId', 'todos'],
                 },
               },
             },
             {
-              type: "function",
+              type: 'function',
               function: {
-                name: "deleteTodo",
-                description: "Delete a todo item by id",
+                name: 'renameList',
+                description: 'Rename a list',
                 parameters: {
-                  type: "object",
+                  type: 'object',
                   properties: {
-                    id: { type: "string" }
+                    listId: { type: 'string' },
+                    newTitle: { type: 'string' },
                   },
-                  required: ["id"]
+                  required: ['listId', 'newTitle'],
                 },
               },
             },
             {
-              type: "function",
+              type: 'function',
               function: {
-                name: "deleteList",
-                description: "Delete a list by id",
+                name: 'updateTodo',
+                description: 'Update a todo item by id',
                 parameters: {
-                  type: "object",
+                  type: 'object',
                   properties: {
-                    listId: { type: "string" }
+                    id: { type: 'string' },
+                    text: { type: 'string' },
+                    completed: { type: 'boolean' },
+                    dueDate: {
+                      type: 'string',
+                      format: 'date-time',
+                    },
                   },
-                  required: ["listId"]
+                  required: ['id'],
+                },
+              },
+            },
+            {
+              type: 'function',
+              function: {
+                name: 'deleteTodo',
+                description: 'Delete a todo item by id',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                  },
+                  required: ['id'],
+                },
+              },
+            },
+            {
+              type: 'function',
+              function: {
+                name: 'deleteList',
+                description: 'Delete a list by id',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    listId: { type: 'string' },
+                  },
+                  required: ['listId'],
                 },
               },
             },
           ],
-          model: "meta-llama/llama-4-maverick-17b-128e-instruct",
+          model: 'meta-llama/llama-4-maverick-17b-128e-instruct',
           temperature: 0,
           max_completion_tokens: 4096,
           top_p: 1,
           stream: true,
-          stop: null
+          stop: null,
         });
 
         for await (const chunk of chatCompletion) {
-          console.log(chunk)
+          console.log(chunk);
           await stream.write(`${JSON.stringify(chunk)}\n`);
         }
       } catch (error) {
@@ -260,7 +259,7 @@ app.post('/chat/stream', async (c) => {
 app.post('/chat', async (c) => {
   try {
     const { transcript } = await c.req.json();
-    
+
     if (!transcript) {
       return c.json({ error: 'Transcript is required' }, 400);
     }
@@ -271,155 +270,153 @@ app.post('/chat', async (c) => {
     const response = await groq.chat.completions.create({
       messages: [
         {
-          role: "system",
+          role: 'system',
           content: `You are an voice powered Todo List app called Listo. You should transform the user's transcript into professionally written lists of tasks. When creating new lists, do not include the word "list" in the title unless the user explicitly says to call it that.
               
               You should always respond with tool calls to create or update lists and tasks based on the transcript. The user will provide their entire existing list of tasks in addition to the transcript.
 
               You must respond in the correct tool call format. Do not respond with any other text or explanations.
-          `
+
+              If the user references a list that you do not see and prefixes the name of the list with "The", ie "The Century List", use the list that is phonetically closest based on the existing lists. If the user does not say the before the list name, you should create a new list with the name they provide. If you see a phonetically similar exisitng list, always use that list instead of creating a new one.
+          `,
         },
         {
-          role: "user",
-          content: transcript
-        }
+          role: 'user',
+          content: transcript,
+        },
       ],
       tools: [
         {
-          type: "function",
+          type: 'function',
           function: {
-            name: "createListWithTasks",
-            description: "Create a new list with an optional list of tasks",
+            name: 'createListWithTasks',
+            description: 'Create a new list with an optional list of tasks',
             parameters: {
-              type: "object",
+              type: 'object',
               properties: {
-                title: { type: "string" },
+                title: { type: 'string' },
                 tasks: {
-                  type: "array",
+                  type: 'array',
                   items: {
-                    type: "object",
+                    type: 'object',
                     properties: {
-                      text: { type: "string" },
-                      completed: { type: "boolean" },
-                      dueDate: { 
-                        type: "string",
-                        format: "date-time"
-                      }
+                      text: { type: 'string' },
+                      completed: { type: 'boolean' },
+                      dueDate: {
+                        type: 'string',
+                        format: 'date-time',
+                      },
                     },
-                    required: ["text"]
-                  }
+                    required: ['text'],
+                  },
                 },
-                
               },
-              required: ["title"]
-            }
+              required: ['title'],
+            },
           },
-         
         },
         {
-          type: "function",
+          type: 'function',
           function: {
-            name: "createTodosInList",
-            description: "Create todos in an existing list",
+            name: 'createTodosInList',
+            description: 'Create todos in an existing list',
             parameters: {
-              type: "object",
+              type: 'object',
               properties: {
-                listId: { type: "string" },
+                listId: { type: 'string' },
                 todos: {
-                  type: "array",
+                  type: 'array',
                   items: {
-                    type: "object",
+                    type: 'object',
                     properties: {
-                      text: { type: "string" },
-                      completed: { type: "boolean" },
-                      dueDate: { 
-                        type: "string",
-                        format: "date-time"
-                      }
+                      text: { type: 'string' },
+                      completed: { type: 'boolean' },
+                      dueDate: {
+                        type: 'string',
+                        format: 'date-time',
+                      },
                     },
-                    required: ["text"]
-                  }
-                }
+                    required: ['text'],
+                  },
+                },
               },
-              required: ["listId", "todos"]
-            }
-          },
-         
-        },
-        {
-          type: "function",
-          function: {
-            name: "renameList",
-            description: "Rename a list",
-            parameters: {
-              type: "object",
-              properties: {
-                listId: { type: "string" },
-                newTitle: { type: "string" },
-              },
-              required: ["listId", "newTitle"]
+              required: ['listId', 'todos'],
             },
           },
         },
         {
-          type: "function",
+          type: 'function',
           function: {
-            name: "updateTodo",
-            description: "Update a todo item by id",
+            name: 'renameList',
+            description: 'Rename a list',
             parameters: {
-              type: "object",
+              type: 'object',
               properties: {
-                id: { type: "string" },
-                text: { type: "string" },
-                completed: { type: "boolean" },
-                dueDate: { 
-                  type: "string",
-                  format: "date-time"
-                }
+                listId: { type: 'string' },
+                newTitle: { type: 'string' },
               },
-              required: ["id"]
+              required: ['listId', 'newTitle'],
             },
           },
         },
         {
-          type: "function",
+          type: 'function',
           function: {
-            name: "deleteTodo",
-            description: "Delete a todo item by id",
+            name: 'updateTodo',
+            description: 'Update a todo item by id',
             parameters: {
-              type: "object",
+              type: 'object',
               properties: {
-                id: { type: "string" }
+                id: { type: 'string' },
+                text: { type: 'string' },
+                completed: { type: 'boolean' },
+                dueDate: {
+                  type: 'string',
+                  format: 'date-time',
+                },
               },
-              required: ["id"]
+              required: ['id'],
             },
           },
         },
         {
-          type: "function",
+          type: 'function',
           function: {
-            name: "deleteList",
-            description: "Delete a list by id",
+            name: 'deleteTodo',
+            description: 'Delete a todo item by id',
             parameters: {
-              type: "object",
+              type: 'object',
               properties: {
-                listId: { type: "string" }
+                id: { type: 'string' },
               },
-              required: ["listId"]
+              required: ['id'],
+            },
+          },
+        },
+        {
+          type: 'function',
+          function: {
+            name: 'deleteList',
+            description: 'Delete a list by id',
+            parameters: {
+              type: 'object',
+              properties: {
+                listId: { type: 'string' },
+              },
+              required: ['listId'],
             },
           },
         },
       ],
-      model: "moonshotai/kimi-k2-instruct",
+      model: 'moonshotai/kimi-k2-instruct',
       temperature: 0,
-      tool_choice: "auto",
+      tool_choice: 'auto',
       max_completion_tokens: 4096,
     });
 
     console.log('Chat response:', response.choices[0]?.message);
 
     return c.json(response);
-
   } catch (error) {
     console.error('Chat error:', error);
     return c.json({ error: 'Failed to process transcript' }, 500);
