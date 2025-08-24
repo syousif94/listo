@@ -14,7 +14,8 @@
       "usesAppleSignIn": true,
       "infoPlist": {
         "NSSpeechRecognitionUsageDescription": "Allow $(PRODUCT_NAME) to use speech recognition.",
-        "NSMicrophoneUsageDescription": "$(PRODUCT_NAME) needs access to your microphone to record audio."
+        "NSMicrophoneUsageDescription": "$(PRODUCT_NAME) needs access to your microphone to record audio.",
+        "NSPhotoLibraryUsageDescription": "$(PRODUCT_NAME) needs access to your photo library to save recordings."
       }
     },
     "android": {
@@ -70,7 +71,6 @@
           "backgroundColor": "#ffffff"
         }
       ],
-      "@config-plugins/ffmpeg-kit-react-native",
       "expo-audio",
       [
         "expo-speech-recognition",
@@ -84,8 +84,7 @@
         {
           "launchMode": "launcher"
         }
-      ],
-      "expo-speech-recognition"
+      ]
     ],
     "experiments": {
       "typedRoutes": true

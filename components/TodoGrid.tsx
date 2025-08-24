@@ -1,6 +1,6 @@
 import { MasonryFlashList } from '@shopify/flash-list';
 import React, { useState } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Image, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, { useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TodoList, useTodoStore } from '../store/todoStore';
@@ -30,7 +30,7 @@ interface TodoGridProps {
 
 export default function TodoGrid({ onEditList }: TodoGridProps) {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const lists = useTodoStore((state) => state.lists);
   const [expandedListId, setExpandedListId] = useState<string | null>(null);
 
@@ -106,6 +106,46 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
         keyExtractor={(item) => item.id}
         extraData={expandedListId}
         numColumns={CARDS_PER_ROW}
+        ListEmptyComponent={() => (
+          <View style={styles.emptyContainer}>
+            <Image
+              source={require('../assets/images/splash-icon.png')}
+              style={{
+                width: '100%',
+                height: height * 0.3,
+                alignSelf: 'center',
+                resizeMode: 'contain',
+              }}
+            />
+            <Animated.Text
+              style={{
+                fontSize: 24,
+                fontWeight: 'bold',
+              }}
+            >
+              Welcome to Listo!
+            </Animated.Text>
+            <Animated.Text style={styles.emptyText}>
+              Press the green button to record yourself speaking naturally, and
+              Listo will turn that into lists for you.
+            </Animated.Text>
+            <Animated.Text style={styles.emptyText}>
+              Try saying variations of the following:
+            </Animated.Text>
+            <Animated.Text style={styles.emptyText}>
+              Create a new list called Todos
+            </Animated.Text>
+            <Animated.Text style={styles.emptyText}>
+              Add laundry, wash dishes, and wash my card to my Todos list
+            </Animated.Text>
+            <Animated.Text style={styles.emptyText}>
+              Remind me about laundry at 6pm
+            </Animated.Text>
+            <Animated.Text style={styles.emptyText}>
+              Delete the Todos list
+            </Animated.Text>
+          </View>
+        )}
         contentContainerStyle={{
           paddingTop: insets.top,
           paddingBottom: insets.bottom + 120,
@@ -136,5 +176,15 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  emptyContainer: {
+    flex: 1,
+    padding: 24,
+  },
+  emptyText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
+    lineHeight: 32,
   },
 });

@@ -548,7 +548,11 @@ export default function ExpandedTodoCard({
                 }}
                 style={[styles.backButton, backButtonBorderStyle]}
               >
-                <BlurView intensity={80} style={styles.backButtonBlur}>
+                <BlurView
+                  intensity={80}
+                  style={styles.backButtonBlur}
+                  tint="light"
+                >
                   <Ionicons name="chevron-back" size={20} color="#007AFF" />
                 </BlurView>
               </AnimatedPressable>
@@ -563,7 +567,11 @@ export default function ExpandedTodoCard({
               ]}
             >
               <Animated.View style={[styles.floatingHeader, headerBorderStyle]}>
-                <BlurView intensity={80} style={styles.blurContainer}>
+                <BlurView
+                  intensity={80}
+                  style={styles.blurContainer}
+                  tint="light"
+                >
                   <Animated.View style={headerTextStyle}>
                     <TextInput
                       style={styles.headerTextInput}
