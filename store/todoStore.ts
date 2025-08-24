@@ -22,26 +22,21 @@ export interface TodoList {
   color: string;
 }
 
-export interface WhisperDownloadState {
-  isDownloading: boolean;
-  isComplete: boolean;
-  error?: string;
-  modelProgress: number; // 0-100
-  coreMLProgress: number; // 0-100
-  modelComplete: boolean;
-  coreMLComplete: boolean;
-}
-
 export interface AudioProcessingState {
   isProcessing: boolean;
   error?: string;
   lastTranscript?: string;
 }
 
+export interface ToastState {
+  isVisible: boolean;
+  message: string;
+}
+
 interface TodoStore {
   lists: TodoList[];
-  whisperDownload: WhisperDownloadState;
   audioProcessing: AudioProcessingState;
+  toast: ToastState;
   addList: (name: string) => void;
   updateList: (id: string, updates: Partial<TodoList>) => void;
   deleteList: (id: string) => void;
@@ -54,10 +49,10 @@ interface TodoStore {
   toggleTodo: (listId: string, todoId: string) => void;
   deleteTodo: (listId: string, todoId: string) => void;
   getAllTodosWithDueDates: () => (TodoItem & { listName: string })[];
-  updateWhisperDownload: (updates: Partial<WhisperDownloadState>) => void;
-  resetWhisperDownload: () => void;
   updateAudioProcessing: (updates: Partial<AudioProcessingState>) => void;
   resetAudioProcessing: () => void;
+  showToast: (message: string, type?: 'error' | 'success' | 'info') => void;
+  hideToast: () => void;
   getCurrentListsString: () => string;
   createListWithTasks: (
     title: string,
@@ -78,16 +73,12 @@ export const useTodoStore = create<TodoStore>()(
   persist(
     immer((set, get) => ({
       lists: [],
-      whisperDownload: {
-        isDownloading: false,
-        isComplete: false,
-        modelProgress: 0,
-        coreMLProgress: 0,
-        modelComplete: false,
-        coreMLComplete: false,
-      },
       audioProcessing: {
         isProcessing: false,
+      },
+      toast: {
+        isVisible: false,
+        message: '',
       },
 
       addList: (name: string) =>
@@ -193,23 +184,6 @@ export const useTodoStore = create<TodoStore>()(
         );
       },
 
-      updateWhisperDownload: (updates: Partial<WhisperDownloadState>) =>
-        set((state) => {
-          Object.assign(state.whisperDownload, updates);
-        }),
-
-      resetWhisperDownload: () =>
-        set((state) => {
-          state.whisperDownload = {
-            isDownloading: false,
-            isComplete: false,
-            modelProgress: 0,
-            coreMLProgress: 0,
-            modelComplete: false,
-            coreMLComplete: false,
-          };
-        }),
-
       updateAudioProcessing: (updates: Partial<AudioProcessingState>) =>
         set((state) => {
           Object.assign(state.audioProcessing, updates);
@@ -219,6 +193,25 @@ export const useTodoStore = create<TodoStore>()(
         set((state) => {
           state.audioProcessing = {
             isProcessing: false,
+          };
+        }),
+
+      showToast: (message: string, type?: 'error' | 'success' | 'info') =>
+        set((state) => {
+          // Only show error toasts
+          if (type !== 'error' && type !== undefined) return;
+
+          state.toast = {
+            isVisible: true,
+            message,
+          };
+        }),
+
+      hideToast: () =>
+        set((state) => {
+          state.toast = {
+            ...state.toast,
+            isVisible: false,
           };
         }),
 

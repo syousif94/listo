@@ -258,6 +258,10 @@ export class SpeechRecognitionService {
     }
 
     try {
+      // Get current list names from the store
+      const store = useTodoStore.getState();
+      const contextualStrings = store.lists.map((list) => list.name);
+
       await ExpoSpeechRecognitionModule.start({
         lang: options?.language || 'en-US',
         interimResults: options?.interimResults ?? true,
@@ -265,6 +269,7 @@ export class SpeechRecognitionService {
         continuous: options?.continuous ?? true,
         requiresOnDeviceRecognition: false,
         addsPunctuation: true,
+        contextualStrings,
         volumeChangeEventOptions: {
           enabled: true,
           intervalMillis: 100, // Update volume every 100ms for smooth animation

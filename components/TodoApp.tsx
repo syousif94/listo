@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Dimensions, StyleSheet, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
@@ -6,8 +6,14 @@ import RecordingButton from './RecordingButton';
 import TodoGrid from './TodoGrid';
 
 export default function TodoApp() {
-  const [editingListId, setEditingListId] = useState<string | null>(null);
-  const [showListEditor, setShowListEditor] = useState(false);
+  // const [_editingListId, _setEditingListId] = useState<string | null>(null);
+  // const [showListEditor, setShowListEditor] = useState(false);
+
+  // Toast state from store
+  // const { toast, hideToast } = useTodoStore((state) => ({
+  //   toast: state.toast,
+  //   hideToast: state.hideToast,
+  // }));
 
   // Shared values for editor popup positioning
   const editorAnchorX = useSharedValue(0);
@@ -24,14 +30,14 @@ export default function TodoApp() {
       height: number;
     }
   ) => {
-    setEditingListId(listId);
+    // _setEditingListId(listId);
     if (position) {
       editorAnchorX.value = position.x;
       editorAnchorY.value = position.y;
       editorAnchorWidth.value = position.width;
       editorAnchorHeight.value = position.height;
     }
-    setShowListEditor(true);
+    // setShowListEditor(true);
   };
 
   const pageStyle = {
@@ -43,11 +49,18 @@ export default function TodoApp() {
     <View style={styles.container}>
       {/* <AudioProcessingStatus /> */}
 
+      {/* Toast Notification */}
+      {/* <ToastNotification
+        message={toast.message}
+        isVisible={toast.isVisible}
+        onHide={hideToast}
+      /> */}
+
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         pagingEnabled
-        scrollEnabled={!showListEditor}
+        // scrollEnabled={!showListEditor}
       >
         <View style={[styles.viewContainer, pageStyle]}>
           <TodoGrid onEditList={handleEditList} />
@@ -58,6 +71,8 @@ export default function TodoApp() {
       </ScrollView>
 
       <RecordingButton />
+
+      {/* <IntroScreen /> */}
 
       {/* <FloatingTodoInput onEditComplete={handleEditComplete} />
 

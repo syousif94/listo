@@ -30,7 +30,9 @@ export const sessions = sqliteTable(
   'sessions',
   {
     id: text('id').primaryKey(),
-    userId: text('user_id').references(() => users.id).notNull(),
+    userId: text('user_id')
+      .references(() => users.id)
+      .notNull(),
     token: text('token').unique().notNull(),
     expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
     createdAt: integer('created_at', { mode: 'timestamp' })
@@ -44,7 +46,35 @@ export const sessions = sqliteTable(
   ]
 );
 
+export const tokenUsage = sqliteTable(
+  'token_usage',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').references(() => users.id),
+    completionTokens: integer('completion_tokens').notNull(),
+    promptTokens: integer('prompt_tokens').notNull(),
+    totalTokens: integer('total_tokens').notNull(),
+    completionTime: integer('completion_time'),
+    promptTime: integer('prompt_time'),
+    queueTime: integer('queue_time'),
+    totalTime: integer('total_time'),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .$default(makeNow)
+      .notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp' })
+      .$default(makeNow)
+      .$onUpdate(makeNow)
+      .notNull(),
+  },
+  (table) => [
+    index('idx_token_usage_user_id').on(table.userId),
+    index('idx_token_usage_created_at').on(table.createdAt),
+  ]
+);
+
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type Session = typeof sessions.$inferSelect;
 export type NewSession = typeof sessions.$inferInsert;
+export type TokenUsage = typeof tokenUsage.$inferSelect;
+export type NewTokenUsage = typeof tokenUsage.$inferInsert;
