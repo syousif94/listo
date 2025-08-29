@@ -33,10 +33,22 @@ export interface ToastState {
   message: string;
 }
 
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  tool_calls?: any[];
+}
+
+export interface ChatHistory {
+  messages: ChatMessage[];
+}
+
 interface TodoStore {
   lists: TodoList[];
   audioProcessing: AudioProcessingState;
   toast: ToastState;
+  chatHistory: ChatHistory;
   addList: (name: string) => void;
   updateList: (id: string, updates: Partial<TodoList>) => void;
   deleteList: (id: string) => void;
@@ -65,6 +77,11 @@ interface TodoStore {
   renameList: (listId: string, newTitle: string) => void;
   updateTodoById: (todoId: string, updates: Partial<TodoItem>) => void;
   deleteTodoById: (todoId: string) => void;
+  addChatMessage: (message: ChatMessage) => void;
+  getChatHistory: () => ChatMessage[];
+  getChatHistoryForAPI: () => any[];
+  clearChatHistory: () => void;
+  trimChatHistory: (maxMessages?: number) => void;
 }
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -79,6 +96,9 @@ export const useTodoStore = create<TodoStore>()(
       toast: {
         isVisible: false,
         message: '',
+      },
+      chatHistory: {
+        messages: [],
       },
 
       addList: (name: string) =>
@@ -231,11 +251,13 @@ export const useTodoStore = create<TodoStore>()(
                       (item) =>
                         `${item.completed ? '✓' : '○'} ${item.text} (id: ${
                           item.id
-                        })${item.dueDate ? ` (due: ${item.dueDate})` : ''}`
+                        }, created: ${item.createdAt})${
+                          item.dueDate ? ` (due: ${item.dueDate})` : ''
+                        }`
                     )
                     .join(', ');
 
-            return `${list.name} (id: ${list.id}, ${list.items.length} items, color: ${list.color}): ${itemsStr}`;
+            return `${list.name} (id: ${list.id}, ${list.items.length} items, color: ${list.color}, created: ${list.createdAt}, updated: ${list.updatedAt}): ${itemsStr}`;
           })
           .join(' | ');
       },
@@ -327,6 +349,44 @@ export const useTodoStore = create<TodoStore>()(
               list.updatedAt = new Date().toISOString();
               break;
             }
+          }
+        }),
+
+      addChatMessage: (message: ChatMessage) =>
+        set((state) => {
+          state.chatHistory.messages.push(message);
+          // Keep only last 16 messages (8 user-assistant pairs) to prevent memory issues
+          if (state.chatHistory.messages.length > 16) {
+            state.chatHistory.messages = state.chatHistory.messages.slice(-16);
+          }
+        }),
+
+      getChatHistory: () => {
+        const state = get();
+        return state.chatHistory.messages;
+      },
+
+      getChatHistoryForAPI: () => {
+        const state = get();
+        return state.chatHistory.messages.map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+          ...(msg.tool_calls && { tool_calls: msg.tool_calls }),
+        }));
+      },
+
+      clearChatHistory: () =>
+        set((state) => {
+          state.chatHistory.messages = [];
+        }),
+
+      trimChatHistory: (maxMessages: number = 10) =>
+        set((state) => {
+          if (state.chatHistory.messages.length > maxMessages) {
+            // Keep user-assistant pairs together by taking the last N messages
+            state.chatHistory.messages = state.chatHistory.messages.slice(
+              -maxMessages
+            );
           }
         }),
     })),

@@ -15,8 +15,10 @@ export async function processTranscriptWithChat(
   try {
     console.log('🌐 Sending transcript to chat API:', transcript);
 
+    const todoStore = useTodoStore.getState();
+
     // Get current lists from store
-    const currentLists = useTodoStore.getState().getCurrentListsString();
+    const currentLists = todoStore.getCurrentListsString();
 
     // Prepend current lists to transcript
     const fullTranscript = `<Existing-Lists>
@@ -28,8 +30,18 @@ export async function processTranscriptWithChat(
 
     console.log('📋 Full transcript with current lists:', fullTranscript);
 
+    // Get chat history formatted for API (excluding system messages to avoid duplication)
+    const previousMessages = todoStore
+      .getChatHistoryForAPI()
+      .filter((msg) => msg.role !== 'system');
+
+    console.log(
+      '💬 Including previous messages in context:',
+      previousMessages.length
+    );
+
     // TODO: Replace with your actual backend URL
-    const API_ENDPOINT = 'https://ubuntu-server.tail2bbcb.ts.net/chat'; // <-- CHANGE THIS to your backend URL
+    const API_ENDPOINT = 'https://sammys-macbook-pro.tail2bbcb.ts.net/chat'; // <-- CHANGE THIS to your backend URL
 
     // Get current time with timezone
     const currentTime = new Date().toLocaleString('en-US', {
@@ -51,6 +63,7 @@ export async function processTranscriptWithChat(
       body: JSON.stringify({
         transcript: fullTranscript,
         userTime: currentTime,
+        previousMessages,
       }),
     });
 
@@ -76,12 +89,32 @@ export async function processTranscriptWithChat(
 
     if (toolCalls.length === 0) {
       console.log('⚠️ No tool calls found in response');
+
+      // Still store the assistant response in chat history even if no tool calls
+      const assistantMessage = result.choices?.[0]?.message;
+      if (assistantMessage) {
+        todoStore.addChatMessage({
+          role: 'assistant',
+          content: assistantMessage.content || 'No action taken',
+          timestamp: new Date().toISOString(),
+          tool_calls: assistantMessage.tool_calls,
+        });
+      }
+
       return {
         success: true,
       };
     }
 
     console.log('🔧 Processing tool calls:', toolCalls);
+
+    // Store the user message in chat history
+    const timestamp = new Date().toISOString();
+    todoStore.addChatMessage({
+      role: 'user',
+      content: fullTranscript,
+      timestamp,
+    });
 
     // Process each tool call
     const store = useTodoStore.getState();
@@ -142,6 +175,17 @@ export async function processTranscriptWithChat(
         console.error('❌ Error processing tool call:', toolCall, toolError);
         // Continue processing other tool calls even if one fails
       }
+    }
+
+    // Store the assistant response in chat history
+    const assistantMessage = result.choices?.[0]?.message;
+    if (assistantMessage) {
+      todoStore.addChatMessage({
+        role: 'assistant',
+        content: assistantMessage.content || '',
+        timestamp: new Date().toISOString(),
+        tool_calls: assistantMessage.tool_calls,
+      });
     }
 
     return {

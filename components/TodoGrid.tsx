@@ -111,7 +111,7 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
             <Image
               source={require('../assets/images/splash-icon.png')}
               style={{
-                width: '100%',
+                width: width,
                 height: height * 0.3,
                 alignSelf: 'center',
                 resizeMode: 'contain',
@@ -136,7 +136,7 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
               Create a new list called Todos
             </Animated.Text>
             <Animated.Text style={styles.emptyText}>
-              Add laundry, wash dishes, and wash my card to my Todos list
+              Add laundry, wash dishes, and wash my car to my Todos list
             </Animated.Text>
             <Animated.Text style={styles.emptyText}>
               Remind me about laundry at 6pm
