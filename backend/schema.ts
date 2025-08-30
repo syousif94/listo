@@ -10,8 +10,7 @@ export const users = sqliteTable(
     id: text('id').primaryKey(),
     appleId: text('apple_id').unique().notNull(),
     email: text('email'),
-    firstName: text('first_name'),
-    lastName: text('last_name'),
+    name: text('name'),
     createdAt: integer('created_at', { mode: 'timestamp' })
       .$default(makeNow)
       .notNull(),
@@ -26,23 +25,24 @@ export const users = sqliteTable(
   ]
 );
 
-export const sessions = sqliteTable(
-  'sessions',
+export const userTokens = sqliteTable(
+  'user_tokens',
   {
     id: text('id').primaryKey(),
     userId: text('user_id')
       .references(() => users.id)
       .notNull(),
-    token: text('token').unique().notNull(),
-    expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+    jwt: text('jwt').unique().notNull(),
+    isActive: integer('is_active', { mode: 'boolean' }).default(true).notNull(),
+    lastUsedAt: integer('last_used_at', { mode: 'timestamp' }),
     createdAt: integer('created_at', { mode: 'timestamp' })
       .$default(makeNow)
       .notNull(),
   },
   (table) => [
-    index('idx_sessions_user_id').on(table.userId),
-    index('idx_sessions_token').on(table.token),
-    index('idx_sessions_expires_at').on(table.expiresAt),
+    index('idx_user_tokens_user_id').on(table.userId),
+    index('idx_user_tokens_jwt').on(table.jwt),
+    index('idx_user_tokens_is_active').on(table.isActive),
   ]
 );
 
@@ -74,7 +74,7 @@ export const tokenUsage = sqliteTable(
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
-export type Session = typeof sessions.$inferSelect;
-export type NewSession = typeof sessions.$inferInsert;
+export type UserToken = typeof userTokens.$inferSelect;
+export type NewUserToken = typeof userTokens.$inferInsert;
 export type TokenUsage = typeof tokenUsage.$inferSelect;
 export type NewTokenUsage = typeof tokenUsage.$inferInsert;

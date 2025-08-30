@@ -1,7 +1,9 @@
-import React from 'react';
-import { Dimensions, StyleSheet, View } from 'react-native';
+import React, { useEffect } from 'react';
+import { AppState, Dimensions, StyleSheet, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
+import { useAuthStore } from '../store/authStore';
+import LoginButton from './LoginButton';
 import RecordingButton from './RecordingButton';
 import TodoGrid from './TodoGrid';
 
@@ -14,6 +16,38 @@ export default function TodoApp() {
   //   toast: state.toast,
   //   hideToast: state.hideToast,
   // }));
+
+  // Auth state from store
+  const {
+    isAuthenticated,
+    isInitialized,
+    initializeAuth,
+    checkAppleCredentialState,
+  } = useAuthStore();
+
+  // Initialize auth on app start
+  useEffect(() => {
+    initializeAuth();
+  }, []);
+
+  // Check Apple credential state when app comes to foreground
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: string) => {
+      if (nextAppState === 'active') {
+        console.log('App became active, checking Apple credential state');
+        checkAppleCredentialState();
+      }
+    };
+
+    const subscription = AppState.addEventListener(
+      'change',
+      handleAppStateChange
+    );
+
+    return () => {
+      subscription?.remove();
+    };
+  }, []);
 
   // Shared values for editor popup positioning
   const editorAnchorX = useSharedValue(0);
@@ -70,7 +104,9 @@ export default function TodoApp() {
         </View> */}
       </ScrollView>
 
-      <RecordingButton />
+      {/* Only show buttons after auth is initialized */}
+      {isInitialized &&
+        (isAuthenticated ? <RecordingButton /> : <LoginButton />)}
 
       {/* <IntroScreen /> */}
 

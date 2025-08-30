@@ -32,6 +32,12 @@
       ],
       "package": "com.syousif.listo"
     },
+    "notification": {
+      "icon": "./assets/images/icon.png",
+      "color": "#ffffff",
+      "androidMode": "default",
+      "androidCollapsedTitle": "{{unread_count}} new reminders"
+    },
     "web": {
       "bundler": "metro",
       "output": "static",
@@ -71,6 +77,7 @@
           "backgroundColor": "#ffffff"
         }
       ],
+      "expo-notifications",
       "expo-audio",
       [
         "expo-speech-recognition",
@@ -84,7 +91,9 @@
         {
           "launchMode": "launcher"
         }
-      ]
+      ],
+      "react-native-cloud-storage",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true

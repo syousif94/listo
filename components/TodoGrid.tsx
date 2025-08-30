@@ -1,7 +1,13 @@
 import { MasonryFlashList } from '@shopify/flash-list';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Animated, { useSharedValue } from 'react-native-reanimated';
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TodoList, useTodoStore } from '../store/todoStore';
 import ExpandedTodoCard from './ExpandedTodoCard';
@@ -15,6 +21,21 @@ const ListsMasonryList = createTypedMasonryList<TodoList>();
 
 const CARD_MARGIN = 12;
 const CARDS_PER_ROW = 2;
+
+const quotes = [
+  'Create a new list called Todos',
+  'Add laundry, oil change, and car wash to my Todos list',
+  'Remind me about laundry at 6pm',
+  'Mark everything in Todos done',
+  'Delete all the completed todos in the Todos list',
+  'Delete the Todos list',
+  'Undo that',
+  'Add Data Driven Science and Engineering to my reading list',
+  'Move my work list to the top',
+  'Create a shopping list with white peaches, cilantro, and green onions',
+  'Rename Shopping List to Groceries',
+  'Move the ones with due dates to the top',
+];
 
 interface TodoGridProps {
   onEditList: (
@@ -112,38 +133,24 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
               source={require('../assets/images/splash-icon.png')}
               style={{
                 width: width,
-                height: height * 0.3,
+                height: 100,
+                marginTop: height * 0.2,
                 alignSelf: 'center',
                 resizeMode: 'contain',
               }}
             />
-            <Animated.Text
-              style={{
-                fontSize: 24,
-                fontWeight: 'bold',
-              }}
-            >
+
+            <Animated.Text style={styles.titleText}>
               Welcome to Listo!
             </Animated.Text>
+
             <Animated.Text style={styles.emptyText}>
-              Press the green button to record yourself speaking naturally, and
-              Listo will turn that into lists for you.
+              Press the green button to record yourself speaking and Listo will
+              turn that into lists of stuff like todos, grocery lists, recipes,
+              books, movies, etc.
             </Animated.Text>
-            <Animated.Text style={styles.emptyText}>
-              Try saying variations of the following:
-            </Animated.Text>
-            <Animated.Text style={styles.emptyText}>
-              Create a new list called Todos
-            </Animated.Text>
-            <Animated.Text style={styles.emptyText}>
-              Add laundry, wash dishes, and wash my car to my Todos list
-            </Animated.Text>
-            <Animated.Text style={styles.emptyText}>
-              Remind me about laundry at 6pm
-            </Animated.Text>
-            <Animated.Text style={styles.emptyText}>
-              Delete the Todos list
-            </Animated.Text>
+
+            <CyclingQuotes quotes={quotes} />
           </View>
         )}
         contentContainerStyle={{
@@ -173,18 +180,113 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
   );
 }
 
+function CyclingQuotes({ quotes }: { quotes: string[] }) {
+  const [currentQuoteIndex, setCurrentQuoteIndex] = useState(0);
+  const opacity = useSharedValue(1);
+  const translateY = useSharedValue(0);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: opacity.value,
+      transform: [{ translateY: translateY.value }],
+    };
+  });
+
+  useEffect(() => {
+    const cycleToNextQuote = () => {
+      setCurrentQuoteIndex((prev) => (prev + 1) % quotes.length);
+    };
+
+    const animateQuote = () => {
+      // Reset position for new quote
+      translateY.value = 10;
+      opacity.value = 0;
+
+      // Fade in
+      opacity.value = withTiming(1, { duration: 500 });
+      translateY.value = withTiming(0, { duration: 500 }, () => {
+        opacity.value = withDelay(2100, withTiming(0, { duration: 500 }));
+        translateY.value = withDelay(
+          2100,
+          withTiming(-20, { duration: 500 }, () => {
+            runOnJS(cycleToNextQuote)();
+          })
+        );
+      });
+
+      // // Hold for 2.5 seconds then fade out
+      // opacity.value = withDelay(
+      //   2500,
+      //   withTiming(0, { duration: 600 }, () => {
+      //     translateY.value = withTiming(-10, { duration: 600 });
+      //     runOnJS(cycleToNextQuote)();
+      //   })
+      // );
+    };
+
+    // Start the animation
+    animateQuote();
+
+    // Set up interval for continuous cycling
+    // const interval = setInterval(() => {
+    //   animateQuote();
+    // }, 4000);
+  }, [currentQuoteIndex]);
+
+  return (
+    <View style={styles.quoteContainer}>
+      <Animated.View style={[styles.quotesView, animatedStyle]}>
+        <Animated.Text style={styles.quotesText}>
+          {`"${quotes[currentQuoteIndex]}"`}
+        </Animated.Text>
+      </Animated.View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  titleText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    alignSelf: 'center',
+  },
   emptyContainer: {
     flex: 1,
-    padding: 24,
+    marginLeft: -CARD_MARGIN / 2,
   },
   emptyText: {
-    marginTop: 12,
     fontSize: 16,
     color: '#666',
     lineHeight: 32,
+    textAlign: 'center',
+    alignSelf: 'center',
+    marginHorizontal: 24,
+    maxWidth: 480,
+    marginTop: 40,
+  },
+  quoteContainer: {
+    alignItems: 'center',
+    marginTop: 60,
+
+    height: 100,
+  },
+  quotesView: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 40,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 20,
+    paddingVertical: 12,
+    maxWidth: 360,
+  },
+  quotesText: {
+    fontSize: 18,
+    lineHeight: 18 * 1.6,
+    textAlign: 'right',
   },
 });

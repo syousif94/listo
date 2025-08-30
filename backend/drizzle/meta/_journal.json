@@ -15,6 +15,20 @@
       "when": 1755198938145,
       "tag": "0001_fantastic_wildside",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1756496695484,
+      "tag": "0002_big_lionheart",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1756501086581,
+      "tag": "0003_previous_puma",
+      "breakpoints": true
     }
   ]
 }

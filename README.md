@@ -1,50 +1,28 @@
-# Welcome to your Expo app 👋
+## Listo - The Smart List Maker
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Listo is an Expo app with a Bun backend. It uses Groq for Kimi inference and Apple for Auth and List Synchronization.
 
-## Get started
+### System Dependencies
 
-1. Install dependencies
+Bun bun.sh
+expo expo.dev
 
-   ```bash
-   npm install
-   ```
+### Install Local Dependencies
 
-2. Start the app
+#### App
 
-   ```bash
-   npx expo start
-   ```
+`bunx expo install`
 
-In the output, you'll find options to open the app in a
+#### Server
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+`cd backend && bun i`
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### Running
 
-## Get a fresh project
+#### App
 
-When you're ready, run:
+`bunx expo start`
 
-```bash
-npm run reset-project
-```
+#### Server
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+`cd backend && bun dev`

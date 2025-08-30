@@ -2,6 +2,7 @@ import { MMKV } from 'react-native-mmkv';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import { notificationService } from '../services/notificationService';
 
 const storage = new MMKV();
 
@@ -82,6 +83,9 @@ interface TodoStore {
   getChatHistoryForAPI: () => any[];
   clearChatHistory: () => void;
   trimChatHistory: (maxMessages?: number) => void;
+  clearHistoryOnAppLaunch: () => void;
+  scheduleAllNotifications: () => Promise<void>;
+  initializeNotifications: () => Promise<void>;
 }
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -133,14 +137,20 @@ export const useTodoStore = create<TodoStore>()(
           const list = state.lists.find((l) => l.id === listId);
           if (list) {
             const now = new Date().toISOString();
-            list.items.push({
+            const newTodo = {
               id: generateId(),
               text,
               completed: false,
               createdAt: now,
               dueDate,
-            });
+            };
+            list.items.push(newTodo);
             list.updatedAt = now;
+
+            // Schedule notification if todo has due date
+            if (dueDate) {
+              notificationService.scheduleTodoNotification(newTodo, list.name);
+            }
           }
         }),
 
@@ -156,8 +166,19 @@ export const useTodoStore = create<TodoStore>()(
             if (todo) {
               const newTodo = { ...todo, ...updates };
               console.log('Updating todo:', newTodo);
-              Object.assign(todo, { ...todo, ...updates });
+              Object.assign(todo, newTodo);
               list.updatedAt = new Date().toISOString();
+
+              // Handle notification updates
+              notificationService.cancelTodoNotification(todoId);
+
+              // Schedule new notifications if todo has due date and is not completed
+              if (newTodo.dueDate && !newTodo.completed) {
+                notificationService.scheduleTodoNotification(
+                  newTodo,
+                  list.name
+                );
+              }
             }
           }
         }),
@@ -170,6 +191,15 @@ export const useTodoStore = create<TodoStore>()(
             if (todo) {
               todo.completed = !todo.completed;
               list.updatedAt = new Date().toISOString();
+
+              // Handle notifications based on completion status
+              if (todo.completed) {
+                // Cancel notifications when todo is completed
+                notificationService.cancelTodoNotification(todoId);
+              } else if (todo.dueDate) {
+                // Reschedule notifications when todo is uncompleted and has due date
+                notificationService.scheduleTodoNotification(todo, list.name);
+              }
             }
           }
         }),
@@ -180,6 +210,9 @@ export const useTodoStore = create<TodoStore>()(
           if (list) {
             list.items = list.items.filter((item) => item.id !== todoId);
             list.updatedAt = new Date().toISOString();
+
+            // Cancel notifications for deleted todo
+            notificationService.cancelTodoNotification(todoId);
           }
         }),
 
@@ -286,6 +319,16 @@ export const useTodoStore = create<TodoStore>()(
               createdAt: now,
               dueDate: task.dueDate,
             }));
+
+            // Schedule notifications for tasks with due dates
+            newList.items.forEach((task) => {
+              if (task.dueDate && !task.completed) {
+                notificationService.scheduleTodoNotification(
+                  task,
+                  newList.name
+                );
+              }
+            });
           }
 
           state.lists.push(newList);
@@ -317,6 +360,13 @@ export const useTodoStore = create<TodoStore>()(
             }));
             list.items.push(...newTodos);
             list.updatedAt = now;
+
+            // Schedule notifications for todos with due dates
+            newTodos.forEach((todo) => {
+              if (todo.dueDate && !todo.completed) {
+                notificationService.scheduleTodoNotification(todo, list.name);
+              }
+            });
           }
         }),
 
@@ -329,9 +379,22 @@ export const useTodoStore = create<TodoStore>()(
             );
             let todo = list.items[todoIndex];
             if (todo) {
-              list.items[todoIndex] = { ...todo, ...updates };
+              const newTodo = { ...todo, ...updates };
+              list.items[todoIndex] = newTodo;
               console.log('Updating todo:', updates, todo);
               list.updatedAt = new Date().toISOString();
+
+              // Handle notification updates
+              notificationService.cancelTodoNotification(todoId);
+
+              // Schedule new notifications if todo has due date and is not completed
+              if (newTodo.dueDate && !newTodo.completed) {
+                notificationService.scheduleTodoNotification(
+                  newTodo,
+                  list.name
+                );
+              }
+
               break;
             }
           }
@@ -347,6 +410,9 @@ export const useTodoStore = create<TodoStore>()(
             if (todoIndex !== -1) {
               list.items.splice(todoIndex, 1);
               list.updatedAt = new Date().toISOString();
+
+              // Cancel notifications for deleted todo
+              notificationService.cancelTodoNotification(todoId);
               break;
             }
           }
@@ -354,6 +420,20 @@ export const useTodoStore = create<TodoStore>()(
 
       addChatMessage: (message: ChatMessage) =>
         set((state) => {
+          // Check if last message was over 10 minutes ago and clear history if so
+          if (state.chatHistory.messages.length > 0) {
+            const lastMessage =
+              state.chatHistory.messages[state.chatHistory.messages.length - 1];
+            const lastMessageTime = new Date(lastMessage.timestamp).getTime();
+            const currentTime = new Date().getTime();
+            const timeDifference = currentTime - lastMessageTime;
+            const tenMinutesInMs = 10 * 60 * 1000; // 10 minutes in milliseconds
+
+            if (timeDifference > tenMinutesInMs) {
+              state.chatHistory.messages = [];
+            }
+          }
+
           state.chatHistory.messages.push(message);
           // Keep only last 16 messages (8 user-assistant pairs) to prevent memory issues
           if (state.chatHistory.messages.length > 16) {
@@ -389,6 +469,29 @@ export const useTodoStore = create<TodoStore>()(
             );
           }
         }),
+
+      clearHistoryOnAppLaunch: () =>
+        set((state) => {
+          // Always clear chat history when app launches to start fresh
+          state.chatHistory.messages = [];
+        }),
+
+      scheduleAllNotifications: async () => {
+        const state = get();
+        const todosWithDueDates = state.getAllTodosWithDueDates();
+        await notificationService.scheduleAllTodoNotifications(
+          todosWithDueDates
+        );
+      },
+
+      initializeNotifications: async () => {
+        await notificationService.requestPermissions();
+        const state = get();
+        const todosWithDueDates = state.getAllTodosWithDueDates();
+        await notificationService.scheduleAllTodoNotifications(
+          todosWithDueDates
+        );
+      },
     })),
     {
       name: 'todo-storage',

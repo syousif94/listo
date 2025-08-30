@@ -1,4 +1,6 @@
 import type { ChatCompletion } from 'groq-sdk/resources/chat/completions.mjs';
+import { API_ENDPOINTS } from '../constants/config';
+import { useAuthStore } from '../store/authStore';
 import { useTodoStore } from '../store/todoStore';
 
 export interface TranscriptionResult {
@@ -40,8 +42,8 @@ export async function processTranscriptWithChat(
       previousMessages.length
     );
 
-    // TODO: Replace with your actual backend URL
-    const API_ENDPOINT = 'https://sammys-macbook-pro.tail2bbcb.ts.net/chat'; // <-- CHANGE THIS to your backend URL
+    // Use configured API endpoint
+    const API_ENDPOINT = API_ENDPOINTS.chat;
 
     // Get current time with timezone
     const currentTime = new Date().toLocaleString('en-US', {
@@ -55,29 +57,85 @@ export async function processTranscriptWithChat(
       second: '2-digit',
     });
 
-    const response = await fetch(API_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        transcript: fullTranscript,
-        userTime: currentTime,
-        previousMessages,
-      }),
-    });
+    // Get auth headers
+    const authStore = useAuthStore.getState();
+    const headers = authStore.getAuthHeaders();
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Chat API request failed:', response.status, errorText);
+    let response;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout for chat requests
 
-      // Show toast notification instead of just console error
+      response = await fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          transcript: fullTranscript,
+          userTime: currentTime,
+          previousMessages,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+    } catch (networkError: any) {
+      console.log(
+        '🌐 Network error during chat request:',
+        networkError.message
+      );
+
       const store = useTodoStore.getState();
-      store.showToast(`API error: ${response.status} - ${errorText}`, 'error');
+
+      // Handle different types of network errors
+      if (networkError.name === 'AbortError') {
+        store.showToast('Request timed out. Please try again.', 'error');
+      } else if (
+        networkError.name === 'TypeError' &&
+        networkError.message.includes('Failed to fetch')
+      ) {
+        store.showToast(
+          'Unable to connect to server. Please check your connection.',
+          'error'
+        );
+      } else {
+        store.showToast('Network error occurred. Please try again.', 'error');
+      }
 
       return {
         success: false,
-        error: `API error: ${response.status} - ${errorText}`,
+        error: `Network error: ${networkError.message}`,
+      };
+    }
+
+    if (!response.ok) {
+      const store = useTodoStore.getState();
+      let errorMessage = 'Server error occurred';
+
+      try {
+        const errorText = await response.text();
+        console.log('❌ Chat API request failed:', response.status, errorText);
+
+        // Provide user-friendly error messages based on status code
+        if (response.status >= 500) {
+          errorMessage =
+            'Server is temporarily unavailable. Please try again later.';
+        } else if (response.status === 401) {
+          errorMessage = 'Authentication expired. Please sign in again.';
+        } else if (response.status === 400) {
+          errorMessage = 'Invalid request. Please try again.';
+        } else {
+          errorMessage = `Server error (${response.status}). Please try again.`;
+        }
+      } catch (parseError) {
+        console.log('❌ Failed to parse error response:', parseError);
+        errorMessage = 'Server error occurred. Please try again.';
+      }
+
+      store.showToast(errorMessage, 'error');
+
+      return {
+        success: false,
+        error: errorMessage,
       };
     }
 
@@ -192,17 +250,36 @@ export async function processTranscriptWithChat(
       success: true,
     };
   } catch (error) {
-    console.error('❌ Failed to process transcript with chat:', error);
+    console.log('❌ Failed to process transcript with chat:', error);
 
-    // Show toast notification for network/processing errors
+    // Show toast notification for processing errors
     const store = useTodoStore.getState();
-    const errorMessage =
-      error instanceof Error ? error.message : 'Network error';
-    store.showToast(`Processing failed: ${errorMessage}`, 'error');
+
+    let userFriendlyMessage = 'Processing failed';
+    let errorMessage = 'Unknown error';
+
+    if (error instanceof Error) {
+      errorMessage = error.message;
+
+      // Provide user-friendly messages for common error types
+      if (
+        error.message.includes('Failed to fetch') ||
+        error.message.includes('Network error')
+      ) {
+        userFriendlyMessage =
+          'Unable to connect to server. Please check your connection.';
+      } else if (error.message.includes('JSON')) {
+        userFriendlyMessage = 'Server response error. Please try again.';
+      } else {
+        userFriendlyMessage = 'Processing failed. Please try again.';
+      }
+    }
+
+    store.showToast(userFriendlyMessage, 'error');
 
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Network error',
+      error: errorMessage,
     };
   }
 }
@@ -274,19 +351,33 @@ export async function processTranscriptDirectly(transcript: string): Promise<{
       success: true,
     };
   } catch (error) {
-    console.error('❌ Transcript processing failed:', error);
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : 'Unknown error in processing flow';
+    console.log('❌ Transcript processing failed:', error);
+
+    let errorMessage = 'Unknown error in processing flow';
+    let userFriendlyMessage = 'Processing failed. Please try again.';
+
+    if (error instanceof Error) {
+      errorMessage = error.message;
+
+      // Provide user-friendly messages
+      if (
+        error.message.includes('Failed to fetch') ||
+        error.message.includes('Network error')
+      ) {
+        userFriendlyMessage =
+          'Unable to connect to server. Please check your connection.';
+      } else if (error.message.includes('Authentication')) {
+        userFriendlyMessage = 'Authentication failed. Please sign in again.';
+      }
+    }
 
     store.updateAudioProcessing({
       isProcessing: false,
       error: errorMessage,
     });
 
-    // Show toast for processing failure
-    store.showToast(`Processing failed: ${errorMessage}`, 'error');
+    // Show user-friendly toast message
+    store.showToast(userFriendlyMessage, 'error');
 
     return {
       transcript,

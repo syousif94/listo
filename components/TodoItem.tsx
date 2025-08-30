@@ -1,3 +1,4 @@
+import { format } from 'date-fns';
 import React, { forwardRef } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, {
@@ -52,27 +53,19 @@ const TodoItem = forwardRef<TextInput, TodoItemProps>(
 
       // Reset time to start of day for accurate day comparison
       today.setHours(0, 0, 0, 0);
-      date.setHours(0, 0, 0, 0);
+      const dateForComparison = new Date(date);
+      dateForComparison.setHours(0, 0, 0, 0);
 
-      const diffTime = date.getTime() - today.getTime();
+      const diffTime = dateForComparison.getTime() - today.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-      const months = [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
-      ];
-      const month = months[date.getMonth()];
-      const day = date.getDate().toString().padStart(2, '0');
+      // Format date as before
+      const dateText = format(date, 'MMM dd');
+
+      // Format time
+      const timeText = format(date, 'h:mmaaa')
+        .replace('AM', 'AM')
+        .replace('PM', 'PM');
 
       let daysText = '';
       if (diffDays === 0) {
@@ -87,7 +80,11 @@ const TodoItem = forwardRef<TextInput, TodoItemProps>(
         daysText = `${Math.abs(diffDays)}d`;
       }
 
-      return { dateText: `${month} ${day}`, daysText, isPastDue: diffDays < 0 };
+      return {
+        dateText: `${dateText} ${timeText}`,
+        daysText,
+        isPastDue: diffDays < 0,
+      };
     };
 
     return (
