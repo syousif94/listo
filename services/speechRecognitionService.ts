@@ -110,11 +110,7 @@ export class SpeechRecognitionService {
     const errorListener = ExpoSpeechRecognitionModule.addListener(
       'error',
       (event) => {
-        console.error(
-          '🎤 Speech recognition error:',
-          event.error,
-          event.message
-        );
+        console.log('🎤 Speech recognition error:', event.error, event.message);
         const errorMessage = `${event.error}: ${event.message}`;
 
         this.updateState({

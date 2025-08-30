@@ -1,3 +1,4 @@
+import { and, count, eq, gte, lt, sum } from 'drizzle-orm';
 import { Groq } from 'groq-sdk';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -15,6 +16,58 @@ const app = new Hono<{
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
+
+// Function to get user's remaining tokens and clean up old records
+async function getUserRemainingTokens(userId: string): Promise<{
+  remainingTokens: number;
+  totalUsed: number;
+  monthlyLimit: number;
+}> {
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // First, delete old records for this user (older than 30 days)
+    await db
+      .delete(tokenUsage)
+      .where(
+        and(
+          eq(tokenUsage.userId, userId),
+          lt(tokenUsage.createdAt, thirtyDaysAgo)
+        )
+      );
+
+    // Then, get current completion token usage for the last 30 days
+    const [usage] = await db
+      .select({
+        totalCompletionTokens: sum(tokenUsage.completionTokens),
+      })
+      .from(tokenUsage)
+      .where(
+        and(
+          eq(tokenUsage.userId, userId),
+          gte(tokenUsage.createdAt, thirtyDaysAgo)
+        )
+      );
+
+    const totalUsed = Number(usage?.totalCompletionTokens || 0);
+    const monthlyLimit = 100000; // 100k completion tokens per month
+    const remainingTokens = Math.max(0, monthlyLimit - totalUsed);
+
+    return {
+      remainingTokens,
+      totalUsed,
+      monthlyLimit,
+    };
+  } catch (error) {
+    console.error('Failed to get remaining tokens:', error);
+    return {
+      remainingTokens: 0,
+      totalUsed: 0,
+      monthlyLimit: 100000,
+    };
+  }
+}
 
 // Function to track token usage
 async function trackTokenUsage(
@@ -145,8 +198,13 @@ app.post('/chat', optionalAuthMiddleware, async (c) => {
     }
 
     const user = c.get('user');
+    let userTokens = null;
+
     if (user) {
       console.log(`Processing transcript for authenticated user: ${user.id}`);
+      // Clean up old records for this user but don't block the request
+      userTokens = await getUserRemainingTokens(user.id);
+      console.log(`User ${user.id} token usage:`, userTokens);
     } else {
       console.log('Processing transcript for unauthenticated user');
     }
@@ -169,6 +227,8 @@ app.post('/chat', optionalAuthMiddleware, async (c) => {
       4. If the user references a list that you do not see and prefixes the name of the list with "The", ie "The Century List", use the list that is phonetically closest based on the existing lists. If the user does not say the before the list name, you should create a new list with the name they provide. If you see a phonetically similar exisitng list, always use that list instead of creating a new one.
 
       5. If the user provides a spelling for the name of the list, you should use that spelling for the name of the list. Always capitalize the first letter of each word in the list name, but do not use all caps, even if the user provides a spelling that way.
+
+      6. You can reorder lists and todos when the user requests it. Use reorderLists with a comprehensive array of all list IDs in the desired order, or reorderTodosInList with a list ID and comprehensive array of all todo IDs in that list in the desired order.
 
       <Example>
 
@@ -343,6 +403,46 @@ app.post('/chat', optionalAuthMiddleware, async (c) => {
           },
         },
       },
+      {
+        type: 'function' as const,
+        function: {
+          name: 'reorderLists',
+          description:
+            'Reorder all lists by providing a comprehensive array of list IDs in the desired order',
+          parameters: {
+            type: 'object',
+            properties: {
+              listIds: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Array of all list IDs in the desired order',
+              },
+            },
+            required: ['listIds'],
+          },
+        },
+      },
+      {
+        type: 'function' as const,
+        function: {
+          name: 'reorderTodosInList',
+          description:
+            'Reorder todos in a specific list by providing a comprehensive array of todo IDs in the desired order',
+          parameters: {
+            type: 'object',
+            properties: {
+              listId: { type: 'string' },
+              todoIds: {
+                type: 'array',
+                items: { type: 'string' },
+                description:
+                  'Array of all todo IDs in the list in the desired order',
+              },
+            },
+            required: ['listId', 'todoIds'],
+          },
+        },
+      },
     ];
 
     // Retry logic for Groq API call
@@ -398,9 +498,19 @@ app.post('/chat', optionalAuthMiddleware, async (c) => {
         queue_time: response.usage.queue_time,
         total_time: response.usage.total_time,
       });
+
+      // Get updated token usage after tracking this request
+      userTokens = await getUserRemainingTokens(user.id);
+      console.log(`Updated token usage for user ${user.id}:`, userTokens);
     }
 
-    return c.json(response);
+    // Include token usage in response for authenticated users
+    const responseData = {
+      ...response,
+      ...(userTokens && { tokenUsage: userTokens }),
+    };
+
+    return c.json(responseData);
   } catch (error) {
     console.error('Chat error:', error);
     return c.json({ error: 'Failed to process transcript' }, 500);
@@ -423,8 +533,6 @@ app.get('/user/usage', authMiddleware, async (c) => {
   const user = c.get('user');
 
   try {
-    const { eq, sum, count } = await import('drizzle-orm');
-
     const [usage] = await db
       .select({
         totalRequests: count(),
@@ -438,9 +546,9 @@ app.get('/user/usage', authMiddleware, async (c) => {
     return c.json({
       usage: {
         totalRequests: usage?.totalRequests || 0,
-        totalTokens: usage?.totalTokens || 0,
-        totalPromptTokens: usage?.totalPromptTokens || 0,
-        totalCompletionTokens: usage?.totalCompletionTokens || 0,
+        totalTokens: usage?.totalTokens || 0, // All tokens (prompt + completion)
+        totalPromptTokens: usage?.totalPromptTokens || 0, // Input tokens
+        totalCompletionTokens: usage?.totalCompletionTokens || 0, // Output tokens (limited to 100k/month)
       },
     });
   } catch (error) {

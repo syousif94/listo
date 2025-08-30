@@ -494,61 +494,53 @@ export default function RecordingButton({
         ]}
       >
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-          <View style={{ flex: 1, marginHorizontal: 16 }}>
-            <AudioMeter
-              meteringValues={volumeValues}
-              barCount={40}
-              maxHeight={40}
-              color="white"
-              opacity={1}
-            />
-          </View>
-
-          {/* During listening, show all controls */}
-          <>
-            <Pressable
-              onPress={onStopListening}
-              onPressIn={() => {
-                checkButtonOpacity.value = withTiming(0.5, { duration: 100 });
-              }}
-              onPressOut={() => {
-                checkButtonOpacity.value = withTiming(1, { duration: 100 });
-              }}
-              style={{ width: 60, alignItems: 'center' }}
+          {/* Combined waveform and checkmark button */}
+          <Pressable
+            onPress={onStopListening}
+            onPressIn={() => {
+              checkButtonOpacity.value = withTiming(0.5, { duration: 100 });
+            }}
+            onPressOut={() => {
+              checkButtonOpacity.value = withTiming(1, { duration: 100 });
+            }}
+            style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+          >
+            <Animated.View
+              style={[
+                { flex: 1, flexDirection: 'row', alignItems: 'center' },
+                checkButtonAnimatedStyle,
+              ]}
             >
-              <Animated.View style={checkButtonAnimatedStyle}>
+              <View style={{ flex: 1, marginHorizontal: 16 }}>
+                <AudioMeter
+                  meteringValues={volumeValues}
+                  barCount={40}
+                  maxHeight={40}
+                  color="white"
+                  opacity={1}
+                />
+              </View>
+              <View style={{ width: 40, alignItems: 'center' }}>
                 <Feather name="check" size={24} color="white" />
-              </Animated.View>
-            </Pressable>
-            <Pressable
-              onPress={onCancelListening}
-              onPressIn={() => {
-                closeButtonOpacity.value = withTiming(0.5, { duration: 100 });
-              }}
-              onPressOut={() => {
-                closeButtonOpacity.value = withTiming(1, { duration: 100 });
-              }}
-              style={{ width: 60, alignItems: 'center' }}
-            >
-              <Animated.View style={closeButtonAnimatedStyle}>
-                <AntDesign name="close" size={24} color="white" />
-              </Animated.View>
-            </Pressable>
-            <Pressable
-              onPress={onStopListening}
-              onPressIn={() => {
-                checkButtonOpacity.value = withTiming(0.5, { duration: 100 });
-              }}
-              onPressOut={() => {
-                checkButtonOpacity.value = withTiming(1, { duration: 100 });
-              }}
-              style={{ width: 60, alignItems: 'center' }}
-            >
-              <Animated.View style={checkButtonAnimatedStyle}>
-                <AntDesign name={'pause'} size={24} color="white" />
-              </Animated.View>
-            </Pressable>
-          </>
+              </View>
+            </Animated.View>
+          </Pressable>
+
+          {/* Cancel button */}
+          <Pressable
+            onPress={onCancelListening}
+            onPressIn={() => {
+              closeButtonOpacity.value = withTiming(0.5, { duration: 100 });
+            }}
+            onPressOut={() => {
+              closeButtonOpacity.value = withTiming(1, { duration: 100 });
+            }}
+            style={{ width: 60, alignItems: 'center' }}
+          >
+            <Animated.View style={closeButtonAnimatedStyle}>
+              <AntDesign name="close" size={24} color="white" />
+            </Animated.View>
+          </Pressable>
         </View>
       </Animated.View>
     );

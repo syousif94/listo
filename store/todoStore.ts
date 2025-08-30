@@ -45,11 +45,19 @@ export interface ChatHistory {
   messages: ChatMessage[];
 }
 
+export interface TokenUsage {
+  remainingTokens: number;
+  totalUsed: number; // completion tokens used
+  monthlyLimit: number; // completion token limit
+  lastUpdated?: string;
+}
+
 interface TodoStore {
   lists: TodoList[];
   audioProcessing: AudioProcessingState;
   toast: ToastState;
   chatHistory: ChatHistory;
+  tokenUsage: TokenUsage | null;
   addList: (name: string) => void;
   updateList: (id: string, updates: Partial<TodoList>) => void;
   deleteList: (id: string) => void;
@@ -86,6 +94,10 @@ interface TodoStore {
   clearHistoryOnAppLaunch: () => void;
   scheduleAllNotifications: () => Promise<void>;
   initializeNotifications: () => Promise<void>;
+  updateTokenUsage: (tokenUsage: TokenUsage) => void;
+  getTokenUsage: () => TokenUsage | null;
+  reorderLists: (listIds: string[]) => void;
+  reorderTodosInList: (listId: string, todoIds: string[]) => void;
 }
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -104,6 +116,7 @@ export const useTodoStore = create<TodoStore>()(
       chatHistory: {
         messages: [],
       },
+      tokenUsage: null,
 
       addList: (name: string) =>
         set((state) => {
@@ -492,6 +505,93 @@ export const useTodoStore = create<TodoStore>()(
           todosWithDueDates
         );
       },
+
+      updateTokenUsage: (tokenUsage: TokenUsage) =>
+        set((state) => {
+          state.tokenUsage = {
+            ...tokenUsage,
+            lastUpdated: new Date().toISOString(),
+          };
+        }),
+
+      getTokenUsage: () => {
+        const state = get();
+        return state.tokenUsage;
+      },
+
+      reorderLists: (listIds: string[]) =>
+        set((state) => {
+          // Validate input
+          if (!Array.isArray(listIds) || listIds.length === 0) {
+            console.warn('Invalid listIds provided for reorderLists');
+            return;
+          }
+
+          // Create a map of current lists by id for quick lookup
+          const listMap = new Map(state.lists.map((list) => [list.id, list]));
+
+          // Reorder lists according to the provided array
+          const reorderedLists = listIds
+            .map((id) => listMap.get(id))
+            .filter((list): list is TodoList => list !== undefined);
+
+          // Only update if we have all lists accounted for
+          if (
+            reorderedLists.length === state.lists.length &&
+            reorderedLists.length === listIds.length
+          ) {
+            state.lists = reorderedLists;
+            // Update timestamp for all affected lists
+            const now = new Date().toISOString();
+            state.lists.forEach((list) => {
+              list.updatedAt = now;
+            });
+            console.log(`✅ Reordered ${state.lists.length} lists`);
+          } else {
+            console.warn(
+              `Cannot reorder lists: expected ${state.lists.length} lists, got ${reorderedLists.length} valid IDs`
+            );
+          }
+        }),
+
+      reorderTodosInList: (listId: string, todoIds: string[]) =>
+        set((state) => {
+          // Validate input
+          if (!listId || !Array.isArray(todoIds) || todoIds.length === 0) {
+            console.warn('Invalid parameters provided for reorderTodosInList');
+            return;
+          }
+
+          const list = state.lists.find((l) => l.id === listId);
+          if (!list) {
+            console.warn(`List with id ${listId} not found`);
+            return;
+          }
+
+          // Create a map of current todos by id for quick lookup
+          const todoMap = new Map(list.items.map((todo) => [todo.id, todo]));
+
+          // Reorder todos according to the provided array
+          const reorderedTodos = todoIds
+            .map((id) => todoMap.get(id))
+            .filter((todo): todo is TodoItem => todo !== undefined);
+
+          // Only update if we have all todos accounted for
+          if (
+            reorderedTodos.length === list.items.length &&
+            reorderedTodos.length === todoIds.length
+          ) {
+            list.items = reorderedTodos;
+            list.updatedAt = new Date().toISOString();
+            console.log(
+              `✅ Reordered ${list.items.length} todos in list ${listId}`
+            );
+          } else {
+            console.warn(
+              `Cannot reorder todos in list ${listId}: expected ${list.items.length} todos, got ${reorderedTodos.length} valid IDs`
+            );
+          }
+        }),
     })),
     {
       name: 'todo-storage',

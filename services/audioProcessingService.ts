@@ -112,11 +112,22 @@ export async function processTranscriptWithChat(
       let errorMessage = 'Server error occurred';
 
       try {
-        const errorText = await response.text();
-        console.log('❌ Chat API request failed:', response.status, errorText);
+        const errorData = await response.json();
+        console.log('❌ Chat API request failed:', response.status, errorData);
+
+        // Update token usage if present in error response
+        if (errorData.tokenUsage) {
+          console.log(
+            '📊 Updating token usage from error response:',
+            errorData.tokenUsage
+          );
+          store.updateTokenUsage(errorData.tokenUsage);
+        }
 
         // Provide user-friendly error messages based on status code
-        if (response.status >= 500) {
+        if (response.status === 429) {
+          errorMessage = 'Too many requests. Please try again later.';
+        } else if (response.status >= 500) {
           errorMessage =
             'Server is temporarily unavailable. Please try again later.';
         } else if (response.status === 401) {
@@ -139,8 +150,20 @@ export async function processTranscriptWithChat(
       };
     }
 
-    const result = (await response.json()) as ChatCompletion;
+    const result = (await response.json()) as ChatCompletion & {
+      tokenUsage?: {
+        remainingTokens: number;
+        totalUsed: number;
+        monthlyLimit: number;
+      };
+    };
     console.log('✅ Chat API response received:', result);
+
+    // Update token usage in store if present
+    if (result.tokenUsage) {
+      console.log('📊 Updating token usage:', result.tokenUsage);
+      todoStore.updateTokenUsage(result.tokenUsage);
+    }
 
     // Extract tool calls from the response
     const toolCalls = result.choices?.[0]?.message?.tool_calls || [];
@@ -224,6 +247,20 @@ export async function processTranscriptWithChat(
           case 'deleteList':
             store.deleteList(args.listId);
             console.log(`✅ Deleted list: ${args.listId}`);
+            break;
+
+          case 'reorderLists':
+            store.reorderLists(args.listIds);
+            console.log(`✅ Reordered lists: ${args.listIds.join(', ')}`);
+            break;
+
+          case 'reorderTodosInList':
+            store.reorderTodosInList(args.listId, args.todoIds);
+            console.log(
+              `✅ Reordered todos in list ${args.listId}: ${args.todoIds.join(
+                ', '
+              )}`
+            );
             break;
 
           default:
