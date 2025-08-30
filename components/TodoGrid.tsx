@@ -1,8 +1,20 @@
 import { MasonryFlashList } from '@shopify/flash-list';
+import { BlurView } from 'expo-blur';
 import React, { useEffect, useState } from 'react';
-import { Image, StyleSheet, View, useWindowDimensions } from 'react-native';
+import {
+  Image,
+  PixelRatio,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import Animated, {
+  Extrapolation,
+  interpolate,
+  interpolateColor,
   runOnJS,
+  useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -57,6 +69,54 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
 
   // Calculate dynamic card width
   const cardWidth = (width - CARD_MARGIN * (CARDS_PER_ROW + 1)) / CARDS_PER_ROW;
+
+  // Scroll tracking for header
+  const scrollY = useSharedValue(0);
+
+  // Scroll handler for header scaling
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
+
+  // Get current date formatted as "Fri, Aug 30"
+  const getCurrentDate = () => {
+    const now = new Date();
+    const options: Intl.DateTimeFormatOptions = {
+      weekday: 'long',
+      month: 'short',
+      day: 'numeric',
+    };
+    return now.toLocaleDateString('en-US', options);
+  };
+
+  // Header animated styles
+  const headerContainerStyle = useAnimatedStyle(() => {
+    const scale = interpolate(
+      scrollY.value,
+      [0, 100],
+      [1, 0.8],
+      Extrapolation.CLAMP
+    );
+
+    return {
+      transform: [{ scale }],
+    };
+  });
+
+  const headerBorderStyle = useAnimatedStyle(() => ({
+    borderColor: interpolateColor(
+      scrollY.value,
+      [0, 100],
+      ['rgba(0, 0, 0, 0.0)', 'rgba(0, 0, 0, 0.1)']
+    ),
+    shadowColor: interpolateColor(
+      scrollY.value,
+      [0, 100],
+      ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 1)']
+    ),
+  }));
 
   // Use shared values for card position
   const cardX = useSharedValue(0);
@@ -121,12 +181,16 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
 
   return (
     <View style={styles.container}>
+      {/* Absolutely positioned floating header */}
+
       <ListsMasonryList
         data={lists}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
         extraData={expandedListId}
         numColumns={CARDS_PER_ROW}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
         ListEmptyComponent={() => (
           <View style={styles.emptyContainer}>
             <Image
@@ -154,12 +218,28 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
           </View>
         )}
         contentContainerStyle={{
-          paddingTop: insets.top,
+          paddingTop: lists.length > 0 ? insets.top + 44 : insets.top,
           paddingBottom: insets.bottom + 120,
           paddingLeft: 6.5,
         }}
         scrollEnabled={!expandedListId}
       />
+
+      {lists.length > 0 && (
+        <Animated.View
+          style={[
+            styles.floatingHeaderContainer,
+            { paddingTop: insets.top, marginLeft: -CARD_MARGIN / 2 },
+            headerContainerStyle,
+          ]}
+        >
+          <Animated.View style={[styles.floatingHeader, headerBorderStyle]}>
+            <BlurView intensity={80} style={styles.blurContainer} tint="light">
+              <Text style={styles.headerDateText}>{getCurrentDate()}</Text>
+            </BlurView>
+          </Animated.View>
+        </Animated.View>
+      )}
 
       {expandedListId && (
         <ExpandedTodoCard
@@ -231,7 +311,7 @@ function CyclingQuotes({ quotes }: { quotes: string[] }) {
     // const interval = setInterval(() => {
     //   animateQuote();
     // }, 4000);
-  }, [currentQuoteIndex]);
+  }, [currentQuoteIndex, opacity, translateY, quotes.length]);
 
   return (
     <View style={styles.quoteContainer}>
@@ -247,6 +327,37 @@ function CyclingQuotes({ quotes }: { quotes: string[] }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  floatingHeaderContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 3,
+    alignItems: 'center',
+  },
+  floatingHeader: {
+    borderRadius: 20,
+    borderWidth: 1 / PixelRatio.get(),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  blurContainer: {
+    height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  headerDateText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    textAlign: 'center',
   },
   titleText: {
     fontSize: 24,
