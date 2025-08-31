@@ -1,89 +1,90 @@
 import { BlurView } from 'expo-blur';
 import React from 'react';
-import { PixelRatio, StyleSheet } from 'react-native';
+import { InputAccessoryView, PixelRatio, StyleSheet } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 import Animated, {
-  interpolate,
-  interpolateColor,
-  useAnimatedKeyboard,
   useAnimatedStyle,
+  useSharedValue,
+  withSpring,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface KeyboardAccessoryViewProps {
   children?: React.ReactNode;
+  nativeID: string;
 }
 
 export default function KeyboardAccessoryView({
   children,
+  nativeID,
 }: KeyboardAccessoryViewProps) {
-  const insets = useSafeAreaInsets();
-  const keyboard = useAnimatedKeyboard();
+  const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => {
-    // Calculate if keyboard is visible based on height
-    const keyboardVisible = keyboard.height.value > 0;
-
-    // Interpolate opacity based on keyboard height
-    const opacity = interpolate(keyboard.height.value, [0, 50], [0, 1]);
-
-    // Interpolate border opacity based on keyboard height
-    const borderOpacity = interpolate(keyboard.height.value, [0, 50], [0, 0.1]);
-
-    // Calculate translateY - when keyboard is closed, position at bottom + insets
-    // When keyboard is open, position above keyboard
-    const translateY = keyboardVisible
-      ? -keyboard.height.value - 8 // 8px padding above keyboard
-      : insets.bottom;
-
     return {
-      opacity,
-      transform: [{ translateY }],
-      borderColor: interpolateColor(
-        keyboard.height.value,
-        [0, 50],
-        ['rgba(0, 0, 0, 0)', `rgba(0, 0, 0, ${borderOpacity})`]
-      ),
-      shadowColor: interpolateColor(
-        keyboard.height.value,
-        [0, 50],
-        ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 1)']
-      ),
+      transform: [{ scale: scale.value }],
     };
   });
 
+  const handlePressIn = () => {
+    scale.value = withSpring(0.6, {
+      damping: 15,
+      stiffness: 300,
+    });
+    console.log('Accessory view pressed in');
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1, {
+      damping: 15,
+      stiffness: 300,
+    });
+    console.log('Accessory view pressed out');
+  };
+
   return (
-    <Animated.View style={[styles.container, animatedStyle]}>
-      <Animated.View style={styles.accessoryView}>
-        <BlurView intensity={80} style={styles.blurContainer} tint="light">
-          {children}
+    <InputAccessoryView nativeID={nativeID}>
+      <Animated.View style={[animatedStyle, styles.container]}>
+        <BlurView intensity={80} style={styles.blurContainer} tint="extraLight">
+          <Pressable
+            onPressIn={handlePressIn}
+            style={{
+              justifyContent: 'center',
+              alignItems: 'center',
+              paddingHorizontal: 16,
+              flex: 1,
+            }}
+            onPress={() => {
+              console.log('Accessory view pressed');
+            }}
+            onPressOut={handlePressOut}
+          >
+            {children}
+          </Pressable>
         </BlurView>
       </Animated.View>
-    </Animated.View>
+    </InputAccessoryView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute',
-    bottom: 0,
-    left: 20,
-    right: 20,
-    zIndex: 1000,
-  },
-  accessoryView: {
-    borderRadius: 20,
-    borderWidth: 1 / PixelRatio.get(),
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   blurContainer: {
     height: 40,
     borderRadius: 20,
     overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 16,
+    marginHorizontal: 20,
+    marginVertical: 8,
+    borderWidth: 1 / PixelRatio.get(),
+    borderColor: 'rgba(0, 0, 0, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    zIndex: 1000,
   },
 });

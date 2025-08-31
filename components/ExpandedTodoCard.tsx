@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { BlurView } from 'expo-blur';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   PixelRatio,
   Pressable,
@@ -55,7 +55,7 @@ interface ExpandedTodoCardProps {
   normalHeight: SharedValue<number>;
 }
 
-export default function ExpandedTodoCard({
+function ExpandedTodoCard({
   listId,
   onDismiss,
   onEditList,
@@ -68,6 +68,7 @@ export default function ExpandedTodoCard({
   normalWidth,
   normalHeight,
 }: ExpandedTodoCardProps) {
+  const ACCESSORY_VIEW_ID = `accessory-${listId}`;
   const { height, width } = useWindowDimensions();
   const list = useTodoStore((state) =>
     state.lists.find((l) => l.id === listId)
@@ -80,7 +81,6 @@ export default function ExpandedTodoCard({
   // State for managing newly created items that need focus
   const inputRefs = useRef<Map<string, TextInput>>(new Map());
   const scrollViewRef = useAnimatedRef<Animated.ScrollView>();
-  const [isInputFocused, setIsInputFocused] = useState(false);
 
   const footerHeight = useSharedValue(windowDimensions.height * 0.7); // 70% of window height
 
@@ -159,7 +159,8 @@ export default function ExpandedTodoCard({
     animationProgress.value = withSpring(1, { damping: 16, stiffness: 120 });
     // Keep border radius when expanded to maintain card appearance
     borderRadius.value = withSpring(24, { damping: 16, stiffness: 120 });
-  }, [height, width, insets]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [height, width, insets.top]);
 
   const panGesture = Gesture.Pan()
     .onUpdate((event) => {
@@ -371,16 +372,11 @@ export default function ExpandedTodoCard({
 
   const renderFooter = () => (
     <Animated.View style={[styles.addTodoArea, animatedFooterStyle]}>
-      <NewTodoInput listId={listId} onFocusChange={setIsInputFocused} />
-      {list?.items.length === 0 && !isInputFocused ? (
-        <Animated.View style={styles.emptyContainer} pointerEvents={'none'}>
-          <Text style={styles.emptyTitleText}>Empty List</Text>
-          <Text style={styles.emptyText}>
-            Tap anywhere to create a new item or press the green button to
-            dictate.
-          </Text>
-        </Animated.View>
-      ) : null}
+      <NewTodoInput
+        listId={listId}
+        showEmptyState={list?.items.length === 0}
+        inputAccessoryViewID={ACCESSORY_VIEW_ID}
+      />
     </Animated.View>
   );
 
@@ -607,7 +603,7 @@ export default function ExpandedTodoCard({
               showsVerticalScrollIndicator={false}
               onScroll={scrollHandler}
               scrollEventThrottle={16}
-              keyboardDismissMode="interactive"
+              keyboardDismissMode="none"
               keyboardShouldPersistTaps="always"
             >
               {list.items.map((item, index) => (
@@ -630,12 +626,14 @@ export default function ExpandedTodoCard({
       </GestureDetector>
 
       {/* Keyboard Accessory View */}
-      <KeyboardAccessoryView>
-        <Text>Testing</Text>
+      <KeyboardAccessoryView nativeID={ACCESSORY_VIEW_ID}>
+        <Text style={styles.accessoryText}>Add Due Date</Text>
       </KeyboardAccessoryView>
     </View>
   );
 }
+
+export default React.memo(ExpandedTodoCard);
 
 const styles = StyleSheet.create({
   overlay: {
@@ -880,26 +878,9 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     backgroundColor: 'transparent',
   },
-  emptyContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    lineHeight: 16 * 1.6,
-    width: 280,
-  },
-  emptyTitleText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#bbb',
-    marginBottom: 8,
+  accessoryText: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '600',
   },
 });
