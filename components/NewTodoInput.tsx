@@ -9,9 +9,13 @@ import { useTodoStore } from '../store/todoStore';
 
 interface NewTodoInputProps {
   listId: string;
+  onFocusChange?: (isFocused: boolean) => void;
 }
 
-export default function NewTodoInput({ listId }: NewTodoInputProps) {
+export default function NewTodoInput({
+  listId,
+  onFocusChange,
+}: NewTodoInputProps) {
   const addTodoToList = useTodoStore((state) => state.addTodoToList);
   const [text, setText] = useState('');
   const inputRef = useRef<TextInput>(null);
@@ -23,14 +27,12 @@ export default function NewTodoInput({ listId }: NewTodoInputProps) {
 
   const handleFooterTap = () => {
     opacity.value = withTiming(1, { duration: 200 });
-    // Focus the input after animation starts
-    setTimeout(() => {
-      inputRef.current?.focus();
-    }, 50);
+    inputRef.current?.focus();
   };
 
   const handleFocus = () => {
     opacity.value = withTiming(1, { duration: 200 });
+    onFocusChange?.(true);
   };
 
   const handleBlur = () => {
@@ -45,6 +47,7 @@ export default function NewTodoInput({ listId }: NewTodoInputProps) {
 
     // Fade back to invisible
     opacity.value = withTiming(0, { duration: 200 });
+    onFocusChange?.(false);
   };
 
   const handleChangeText = (newText: string) => {

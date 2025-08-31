@@ -12,7 +12,7 @@ export const useNotifications = () => {
     let notificationResponseListener: any;
 
     const setupNotifications = async () => {
-      // Initialize notifications and request permissions
+      // Initialize notifications without requesting permissions upfront
       await initializeNotifications();
 
       // Handle notifications received while app is running

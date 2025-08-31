@@ -5,7 +5,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { createUserSession, verifyAppleToken, verifySession } from './auth';
 import { db } from './db';
-import { tokenUsage, type User } from './schema';
+import { deviceTokens, tokenUsage, type User } from './schema';
 
 const app = new Hono<{
   Variables: {
@@ -51,7 +51,7 @@ async function getUserRemainingTokens(userId: string): Promise<{
       );
 
     const totalUsed = Number(usage?.totalCompletionTokens || 0);
-    const monthlyLimit = 100000; // 100k completion tokens per month
+    const monthlyLimit = 50000; // 100k completion tokens per month
     const remainingTokens = Math.max(0, monthlyLimit - totalUsed);
 
     return {
@@ -64,7 +64,7 @@ async function getUserRemainingTokens(userId: string): Promise<{
     return {
       remainingTokens: 0,
       totalUsed: 0,
-      monthlyLimit: 100000,
+      monthlyLimit: 50000,
     };
   }
 }
@@ -554,6 +554,119 @@ app.get('/user/usage', authMiddleware, async (c) => {
   } catch (error) {
     console.error('Failed to get usage statistics:', error);
     return c.json({ error: 'Failed to get usage statistics' }, 500);
+  }
+});
+
+// Register or update device token
+app.post('/user/device-token', authMiddleware, async (c) => {
+  const user = c.get('user');
+
+  try {
+    const { pushToken, deviceName, platform } = await c.req.json();
+
+    if (!pushToken || !platform) {
+      return c.json({ error: 'Push token and platform are required' }, 400);
+    }
+
+    if (!['ios', 'android'].includes(platform)) {
+      return c.json({ error: 'Platform must be ios or android' }, 400);
+    }
+
+    // Check if this token already exists for this user
+    const existingToken = await db
+      .select()
+      .from(deviceTokens)
+      .where(eq(deviceTokens.pushToken, pushToken))
+      .limit(1);
+
+    if (existingToken.length > 0) {
+      // Update existing token
+      const token = existingToken[0]!;
+      await db
+        .update(deviceTokens)
+        .set({
+          userId: user.id, // Update user ID in case token was transferred
+          deviceName,
+          isActive: true,
+          lastUsedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(deviceTokens.pushToken, pushToken));
+
+      return c.json({
+        success: true,
+        message: 'Device token updated',
+        deviceId: token.pushToken,
+      });
+    } else {
+      // Create new token
+      await db.insert(deviceTokens).values({
+        pushToken,
+        userId: user.id,
+        deviceName:
+          deviceName ||
+          `${platform.charAt(0).toUpperCase() + platform.slice(1)} Device`,
+        platform,
+        isActive: true,
+        lastUsedAt: new Date(),
+      });
+
+      return c.json({
+        success: true,
+        message: 'Device token registered',
+        deviceId: pushToken,
+      });
+    }
+  } catch (error) {
+    console.error('Failed to register device token:', error);
+    return c.json({ error: 'Failed to register device token' }, 500);
+  }
+});
+
+// Get user's device tokens
+app.get('/user/devices', authMiddleware, async (c) => {
+  const user = c.get('user');
+
+  try {
+    const devices = await db
+      .select({
+        pushToken: deviceTokens.pushToken,
+        deviceName: deviceTokens.deviceName,
+        platform: deviceTokens.platform,
+        isActive: deviceTokens.isActive,
+        lastUsedAt: deviceTokens.lastUsedAt,
+        createdAt: deviceTokens.createdAt,
+      })
+      .from(deviceTokens)
+      .where(eq(deviceTokens.userId, user.id))
+      .orderBy(deviceTokens.lastUsedAt);
+
+    return c.json({ devices });
+  } catch (error) {
+    console.error('Failed to get user devices:', error);
+    return c.json({ error: 'Failed to get user devices' }, 500);
+  }
+});
+
+// Remove device token
+app.delete('/user/device-token/:pushToken', authMiddleware, async (c) => {
+  const user = c.get('user');
+  const pushToken = c.req.param('pushToken');
+
+  try {
+    await db
+      .delete(deviceTokens)
+      .where(
+        and(
+          eq(deviceTokens.pushToken, pushToken),
+          eq(deviceTokens.userId, user.id)
+        )
+      );
+
+    return c.json({ success: true, message: 'Device token removed' });
+  } catch (error) {
+    console.error('Failed to remove device token:', error);
+    return c.json({ error: 'Failed to remove device token' }, 500);
   }
 });
 

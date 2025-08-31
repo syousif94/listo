@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { BlurView } from 'expo-blur';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   PixelRatio,
   Pressable,
@@ -27,6 +27,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTodoStore } from '../store/todoStore';
+import KeyboardAccessoryView from './KeyboardAccessoryView';
 import NewTodoInput from './NewTodoInput';
 import TodoItemComponent from './TodoItem';
 
@@ -79,6 +80,7 @@ export default function ExpandedTodoCard({
   // State for managing newly created items that need focus
   const inputRefs = useRef<Map<string, TextInput>>(new Map());
   const scrollViewRef = useAnimatedRef<Animated.ScrollView>();
+  const [isInputFocused, setIsInputFocused] = useState(false);
 
   const footerHeight = useSharedValue(windowDimensions.height * 0.7); // 70% of window height
 
@@ -369,7 +371,16 @@ export default function ExpandedTodoCard({
 
   const renderFooter = () => (
     <Animated.View style={[styles.addTodoArea, animatedFooterStyle]}>
-      <NewTodoInput listId={listId} />
+      <NewTodoInput listId={listId} onFocusChange={setIsInputFocused} />
+      {list?.items.length === 0 && !isInputFocused ? (
+        <Animated.View style={styles.emptyContainer} pointerEvents={'none'}>
+          <Text style={styles.emptyTitleText}>Empty List</Text>
+          <Text style={styles.emptyText}>
+            Tap anywhere to create a new item or press the green button to
+            dictate.
+          </Text>
+        </Animated.View>
+      ) : null}
     </Animated.View>
   );
 
@@ -596,6 +607,8 @@ export default function ExpandedTodoCard({
               showsVerticalScrollIndicator={false}
               onScroll={scrollHandler}
               scrollEventThrottle={16}
+              keyboardDismissMode="interactive"
+              keyboardShouldPersistTaps="always"
             >
               {list.items.map((item, index) => (
                 <TodoItemComponent
@@ -615,6 +628,11 @@ export default function ExpandedTodoCard({
           </Animated.View>
         </Animated.View>
       </GestureDetector>
+
+      {/* Keyboard Accessory View */}
+      <KeyboardAccessoryView>
+        <Text>Testing</Text>
+      </KeyboardAccessoryView>
     </View>
   );
 }
@@ -861,5 +879,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 0,
     backgroundColor: 'transparent',
+  },
+  emptyContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 16 * 1.6,
+    width: 280,
+  },
+  emptyTitleText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#bbb',
+    marginBottom: 8,
   },
 });

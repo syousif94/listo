@@ -498,7 +498,8 @@ export const useTodoStore = create<TodoStore>()(
       },
 
       initializeNotifications: async () => {
-        await notificationService.requestPermissions();
+        // Initialize token if already have permissions, but don't request permissions
+        await notificationService.initializeToken();
         const state = get();
         const todosWithDueDates = state.getAllTodosWithDueDates();
         await notificationService.scheduleAllTodoNotifications(

@@ -8,5 +8,7 @@ export const API_ENDPOINTS = {
   },
   user: {
     profile: `${API_BASE_URL}/user/profile`,
+    deviceToken: `${API_BASE_URL}/user/device-token`,
+    devices: `${API_BASE_URL}/user/devices`,
   },
 } as const;

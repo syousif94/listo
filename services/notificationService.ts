@@ -1,6 +1,9 @@
+import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { API_ENDPOINTS } from '../constants/config';
+import { useAuthStore } from '../store/authStore';
 import { TodoItem } from '../store/todoStore';
 
 // Configure how notifications should be handled when the app is running
@@ -17,6 +20,8 @@ Notifications.setNotificationHandler({
 export class NotificationService {
   private static instance: NotificationService;
   private notificationIds: Map<string, string> = new Map();
+  private hasRequestedPermissions: boolean = false;
+  private pushToken: string | null = null;
 
   private constructor() {}
 
@@ -28,12 +33,53 @@ export class NotificationService {
   }
 
   /**
-   * Request notification permissions
+   * Get the project ID from Constants
    */
-  async requestPermissions(): Promise<boolean> {
+  private getProjectId(): string {
+    const projectId =
+      Constants?.expoConfig?.extra?.eas?.projectId ??
+      Constants?.easConfig?.projectId;
+    if (!projectId) {
+      throw new Error('Project ID not found');
+    }
+    return projectId;
+  }
+
+  /**
+   * Get push token without requesting permissions
+   */
+  async getPushToken(): Promise<string | null> {
+    if (this.pushToken) {
+      return this.pushToken;
+    }
+
     if (!Device.isDevice) {
       console.log('Must use physical device for Push Notifications');
-      return false;
+      return null;
+    }
+
+    try {
+      const pushTokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: this.getProjectId(),
+      });
+      this.pushToken = pushTokenData.data;
+      return this.pushToken;
+    } catch (error) {
+      console.error('Failed to get push token:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Request notification permissions and get push token
+   */
+  async requestPermissionsAndGetToken(): Promise<{
+    success: boolean;
+    pushToken?: string;
+  }> {
+    if (!Device.isDevice) {
+      console.log('Must use physical device for Push Notifications');
+      return { success: false };
     }
 
     const { status: existingStatus } =
@@ -47,8 +93,10 @@ export class NotificationService {
 
     if (finalStatus !== 'granted') {
       console.log('Failed to get push token for push notification!');
-      return false;
+      return { success: false };
     }
+
+    this.hasRequestedPermissions = true;
 
     // Configure notification channel for Android
     if (Platform.OS === 'android') {
@@ -60,7 +108,94 @@ export class NotificationService {
       });
     }
 
-    return true;
+    // Get push token (will use cached one if available)
+    const pushToken = await this.getPushToken();
+
+    if (pushToken) {
+      // Sync with backend
+      await this.syncDeviceToken(pushToken);
+      return { success: true, pushToken };
+    } else {
+      return { success: false };
+    }
+  }
+
+  /**
+   * Sync device token with backend
+   */
+  private async syncDeviceToken(pushToken: string): Promise<void> {
+    try {
+      const authStore = useAuthStore.getState();
+      const headers = authStore.getAuthHeaders();
+
+      if (!authStore.isAuthenticated) {
+        console.log('User not authenticated, skipping device token sync');
+        return;
+      }
+
+      const deviceName = (await Device.deviceName) || `${Platform.OS} Device`;
+
+      const response = await fetch(API_ENDPOINTS.user.deviceToken, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          pushToken,
+          deviceName,
+          platform: Platform.OS,
+        }),
+      });
+
+      if (response.ok) {
+        console.log('Device token synced successfully');
+      } else {
+        console.error('Failed to sync device token:', await response.text());
+      }
+    } catch (error) {
+      console.error('Error syncing device token:', error);
+    }
+  }
+
+  /**
+   * Check if we have an existing push token and sync it
+   */
+  async initializeToken(): Promise<void> {
+    try {
+      // Get push token without requiring permissions
+      const pushToken = await this.getPushToken();
+
+      if (pushToken) {
+        // Check if we already have permissions
+        const { status } = await Notifications.getPermissionsAsync();
+        if (status === 'granted') {
+          this.hasRequestedPermissions = true;
+        }
+
+        // Sync with backend regardless of permission status
+        await this.syncDeviceToken(pushToken);
+      }
+    } catch (error) {
+      console.error('Error initializing token:', error);
+    }
+  }
+
+  /**
+   * Sync device token with backend after login
+   */
+  async syncTokenAfterLogin(): Promise<void> {
+    // Get push token immediately (no permissions required)
+    const pushToken = await this.getPushToken();
+
+    if (pushToken) {
+      await this.syncDeviceToken(pushToken);
+    }
+  }
+
+  /**
+   * Request notification permissions (legacy method for compatibility)
+   */
+  async requestPermissions(): Promise<boolean> {
+    const result = await this.requestPermissionsAndGetToken();
+    return result.success;
   }
 
   /**
@@ -82,14 +217,25 @@ export class NotificationService {
       return;
     }
 
+    // Request permissions if we haven't already
+    if (!this.hasRequestedPermissions) {
+      const permissionResult = await this.requestPermissionsAndGetToken();
+      if (!permissionResult.success) {
+        console.log(
+          'Notification permissions denied, cannot schedule notification'
+        );
+        return;
+      }
+    }
+
     try {
       // Cancel existing notification if any
       await this.cancelTodoNotification(todo.id);
 
       const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
-          title: '⚠️ Todo Due Now!',
-          body: `"${todo.text}" in ${listName} is due now!`,
+          title: listName,
+          body: todo.text,
           data: {
             todoId: todo.id,
             listName,
@@ -138,11 +284,7 @@ export class NotificationService {
   async scheduleAllTodoNotifications(
     todosWithDueDates: (TodoItem & { listName: string })[]
   ): Promise<void> {
-    const hasPermissions = await this.requestPermissions();
-    if (!hasPermissions) {
-      return;
-    }
-
+    // Don't request permissions upfront - let individual scheduling handle it
     for (const todo of todosWithDueDates) {
       if (!todo.completed && todo.dueDate) {
         await this.scheduleTodoNotification(todo, todo.listName);

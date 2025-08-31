@@ -2,6 +2,8 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
+import { API_ENDPOINTS } from '../constants/config';
+import { notificationService } from '../services/notificationService';
 
 const TOKEN_KEY = 'user_token';
 const USER_NAME_KEY = 'user_name';
@@ -48,6 +50,13 @@ export const useAuthStore = create<AuthStore>()(
         state.token = token;
         state.isAuthenticated = true;
       });
+
+      // Sync device token after successful authentication
+      try {
+        await notificationService.syncTokenAfterLogin();
+      } catch (error) {
+        console.error('Error syncing device token after login:', error);
+      }
     },
 
     logout: async () => {
@@ -70,7 +79,6 @@ export const useAuthStore = create<AuthStore>()(
         if (storedToken) {
           // Validate token with backend
           try {
-            const { API_ENDPOINTS } = await import('../constants/config');
             const response = await fetch(API_ENDPOINTS.user.profile, {
               headers: {
                 Authorization: `Bearer ${storedToken}`,
@@ -86,6 +94,16 @@ export const useAuthStore = create<AuthStore>()(
                 state.isAuthenticated = true;
                 state.isInitialized = true;
               });
+
+              // Sync device token after restoring authentication
+              try {
+                await notificationService.syncTokenAfterLogin();
+              } catch (error) {
+                console.error(
+                  'Error syncing device token during initialization:',
+                  error
+                );
+              }
             } else {
               // Token is invalid, remove it
               await SecureStore.deleteItemAsync(TOKEN_KEY);
@@ -101,6 +119,16 @@ export const useAuthStore = create<AuthStore>()(
               state.isAuthenticated = true;
               state.isInitialized = true;
             });
+
+            // Try to sync device token even in offline mode
+            try {
+              await notificationService.syncTokenAfterLogin();
+            } catch (syncError) {
+              console.error(
+                'Error syncing device token in offline mode:',
+                syncError
+              );
+            }
           }
         } else {
           set((state) => {
