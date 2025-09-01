@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { BlurView } from 'expo-blur';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   PixelRatio,
   Pressable,
@@ -27,8 +27,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTodoStore } from '../store/todoStore';
-import KeyboardAccessoryView from './KeyboardAccessoryView';
-import NewTodoInput from './NewTodoInput';
+import DateTimePicker from './DateTimePicker';
+import NewTodoInput, { NewTodoInputRef } from './NewTodoInput';
 import TodoItemComponent from './TodoItem';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -68,19 +68,34 @@ function ExpandedTodoCard({
   normalWidth,
   normalHeight,
 }: ExpandedTodoCardProps) {
-  const ACCESSORY_VIEW_ID = `accessory-${listId}`;
   const { height, width } = useWindowDimensions();
   const list = useTodoStore((state) =>
     state.lists.find((l) => l.id === listId)
   );
   const deleteTodo = useTodoStore((state) => state.deleteTodo);
+  const updateTodo = useTodoStore((state) => state.updateTodo);
   const updateList = useTodoStore((state) => state.updateList);
   const insets = useSafeAreaInsets();
   const windowDimensions = useWindowDimensions();
 
   // State for managing newly created items that need focus
   const inputRefs = useRef<Map<string, TextInput>>(new Map());
+  const newTodoInputRef = useRef<NewTodoInputRef>(null);
   const scrollViewRef = useAnimatedRef<Animated.ScrollView>();
+
+  // Focus tracking state
+  const [focusedTodoId, setFocusedTodoId] = useState<string | null>(null);
+  const [focusedNewTodo, setFocusedNewTodo] = useState(false);
+  const [pendingNewTodoDate, setPendingNewTodoDate] = useState<
+    string | undefined
+  >(undefined);
+
+  // Shared date picker state
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [datePickerDate, setDatePickerDate] = useState(new Date());
+  const [datePickerTarget, setDatePickerTarget] = useState<
+    { type: 'todo'; id: string } | { type: 'newTodo' } | null
+  >(null);
 
   const footerHeight = useSharedValue(windowDimensions.height * 0.7); // 70% of window height
 
@@ -373,12 +388,94 @@ function ExpandedTodoCard({
   const renderFooter = () => (
     <Animated.View style={[styles.addTodoArea, animatedFooterStyle]}>
       <NewTodoInput
+        ref={newTodoInputRef}
         listId={listId}
         showEmptyState={list?.items.length === 0}
-        inputAccessoryViewID={ACCESSORY_VIEW_ID}
+        disabled={focusedTodoId !== null}
+        onFocusChange={handleNewTodoFocusChange}
+        onDatePickerRequest={handleDatePickerRequest}
+        pendingDueDate={pendingNewTodoDate}
+        onClearPendingDate={handleClearPendingDate}
       />
     </Animated.View>
   );
+
+  // Focus tracking functions
+  const handleTodoFocusChange = (itemId: string | null, text: string) => {
+    setFocusedTodoId(itemId);
+    // Only allow accessory view if there's text and an item is focused
+    console.log('Focus changed:', itemId, 'text length:', text.length);
+  };
+
+  const handleNewTodoFocusChange = (isFocused: boolean, text: string = '') => {
+    setFocusedNewTodo(isFocused);
+    console.log(
+      'New todo focus changed:',
+      isFocused,
+      'text length:',
+      text.length,
+      'state:',
+      focusedNewTodo
+    );
+  };
+
+  // Shared date picker handlers
+  const handleDatePickerRequest = (
+    target: { type: 'todo'; id: string } | { type: 'newTodo'; text?: string },
+    currentDate?: string
+  ) => {
+    // If it's a new todo request with text, create the todo first
+    if (target.type === 'newTodo' && target.text && target.text.trim()) {
+      const todoStore = useTodoStore.getState();
+      const trimmedText = target.text.trim();
+
+      // Create the new todo
+      todoStore.addTodoToList(listId, trimmedText);
+
+      // Clear the input immediately
+      newTodoInputRef.current?.clearAndBlur();
+
+      // Find the newly created todo (it will be the last one in the list)
+      const updatedList = todoStore.lists.find((l) => l.id === listId);
+      if (updatedList && updatedList.items.length > 0) {
+        const newTodo = updatedList.items[updatedList.items.length - 1];
+
+        // Clear pending date and switch to editing the new todo
+        setPendingNewTodoDate(undefined);
+        setDatePickerTarget({ type: 'todo', id: newTodo.id });
+        setDatePickerDate(new Date()); // New todo, start with current time
+        setShowDatePicker(true);
+      }
+    } else {
+      // Normal flow for existing todos or empty new todo
+      setDatePickerTarget(target);
+      setDatePickerDate(currentDate ? new Date(currentDate) : new Date());
+      setShowDatePicker(true);
+    }
+  };
+
+  const handleDateConfirm = (date: Date) => {
+    if (!datePickerTarget) return;
+
+    if (datePickerTarget.type === 'todo') {
+      updateTodo(listId, datePickerTarget.id, { dueDate: date.toISOString() });
+    } else if (datePickerTarget.type === 'newTodo') {
+      // Store the pending date for the new todo
+      setPendingNewTodoDate(date.toISOString());
+    }
+
+    setShowDatePicker(false);
+    setDatePickerTarget(null);
+  };
+
+  const handleDateCancel = () => {
+    setShowDatePicker(false);
+    setDatePickerTarget(null);
+  };
+
+  const handleClearPendingDate = () => {
+    setPendingNewTodoDate(undefined);
+  };
 
   const formatDueDate = (dueDate: string) => {
     const date = new Date(dueDate);
@@ -609,14 +706,11 @@ function ExpandedTodoCard({
               {list.items.map((item, index) => (
                 <TodoItemComponent
                   key={item.id}
-                  // ref={(ref) => {
-                  //   if (ref) {
-                  //     inputRefs.current.set(item.id, ref);
-                  //   }
-                  // }}
                   item={item}
                   listId={listId}
                   onDeleteEmpty={(itemId) => deleteTodo(listId, itemId)}
+                  onFocusChange={handleTodoFocusChange}
+                  onDatePickerRequest={handleDatePickerRequest}
                 />
               ))}
               {renderFooter()}
@@ -625,10 +719,13 @@ function ExpandedTodoCard({
         </Animated.View>
       </GestureDetector>
 
-      {/* Keyboard Accessory View */}
-      <KeyboardAccessoryView nativeID={ACCESSORY_VIEW_ID}>
-        <Text style={styles.accessoryText}>Add Due Date</Text>
-      </KeyboardAccessoryView>
+      {/* Shared Date Picker Modal */}
+      <DateTimePicker
+        isVisible={showDatePicker}
+        initialDate={datePickerDate}
+        onConfirm={handleDateConfirm}
+        onCancel={handleDateCancel}
+      />
     </View>
   );
 }

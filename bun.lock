@@ -34,12 +34,12 @@
         "expo-updates": "~0.28.17",
         "expo-web-browser": "~14.2.0",
         "groq-sdk": "^0.29.0",
+        "react-native-date-picker": "https://github.com/burakharun/react-native-date-picker.git#fix/new-architecture-turbo-modules",
         "immer": "^10.1.1",
         "react": "19.0.0",
         "react-dom": "19.0.0",
         "react-native": "0.79.5",
         "react-native-cloud-storage": "^2.3.0",
-        "react-native-date-picker": "^5.0.13",
         "react-native-gesture-handler": "~2.24.0",
         "react-native-ios-context-menu": "itsramiel/react-native-ios-context-menu#fix/fix-ios-codegen-config",
         "react-native-ios-utilities": "^5.1.8",
@@ -1445,7 +1445,7 @@
 
     "react-native-cloud-storage": ["react-native-cloud-storage@2.3.0", "", { "peerDependencies": { "expo": ">=48.0.0", "react": "*", "react-native": "*" }, "optionalPeers": ["expo"] }, "sha512-Bt+vnHO5Ae/ITMpZfySOxSVQckPKMb8ZQ0IXsSR7+y+AnShtlTbQ08qEYlHCXOp6+NGAhGD5ushqYO4nrd18tg=="],
 
-    "react-native-date-picker": ["react-native-date-picker@5.0.13", "", { "peerDependencies": { "react": ">= 17.0.1", "react-native": ">= 0.64.3" } }, "sha512-qCLUODZVsJetO5zuoXjw1D39K527XWqBG8sOfhWdHyPzf13h8RXR1/RSKd1N0fdRDi5GdyizYmB0lPAK12/hbw=="],
+    "react-native-date-picker": ["react-native-date-picker@github:burakharun/react-native-date-picker#5e12566", { "peerDependencies": { "react": ">= 17.0.1", "react-native": ">= 0.64.3" } }, "burakharun-react-native-date-picker-5e12566"],
 
     "react-native-edge-to-edge": ["react-native-edge-to-edge@1.6.0", "", { "peerDependencies": { "react": "*", "react-native": "*" } }, "sha512-2WCNdE3Qd6Fwg9+4BpbATUxCLcouF6YRY7K+J36KJ4l3y+tWN6XCqAC4DuoGblAAbb2sLkhEDp4FOlbOIot2Og=="],
 

@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -7,17 +7,32 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { TodoItem as TodoItemType, useTodoStore } from '../store/todoStore';
+import KeyboardAccessoryView from './KeyboardAccessoryView';
 
 interface TodoItemProps {
   item: TodoItemType;
   listId: string;
   onDeleteEmpty: (itemId: string) => void;
+  onFocusChange?: (itemId: string | null, text: string) => void;
+  onDatePickerRequest?: (
+    target: { type: 'todo'; id: string },
+    currentDate?: string
+  ) => void;
 }
 
 const TodoItem = forwardRef<TextInput, TodoItemProps>(
-  ({ item, listId, onDeleteEmpty }, ref) => {
+  (
+    { item, listId, onDeleteEmpty, onFocusChange, onDatePickerRequest },
+    ref
+  ) => {
     const updateTodo = useTodoStore((state) => state.updateTodo);
     const toggleTodo = useTodoStore((state) => state.toggleTodo);
+
+    // State for focus tracking
+    const [isFocused, setIsFocused] = useState(false);
+
+    // Create unique accessory view ID for this todo item
+    const ACCESSORY_VIEW_ID = `todo-accessory-${item.id}`;
 
     const checkboxOpacity = useSharedValue(1);
 
@@ -37,15 +52,33 @@ const TodoItem = forwardRef<TextInput, TodoItemProps>(
 
     const handleTextChange = (text: string) => {
       updateTodo(listId, item.id, { text });
+      // Notify parent of text change if focused
+      onFocusChange?.(item.id, text);
+    };
+
+    const handleFocus = () => {
+      setIsFocused(true);
+      onFocusChange?.(item.id, item.text);
     };
 
     const handleBlur = () => {
+      setIsFocused(false);
       // Delete the todo if it's empty when blurred
       const trimmedText = item.text.trim();
       if (trimmedText === '') {
         onDeleteEmpty(item.id);
       }
+      // Notify parent that nothing is focused
+      onFocusChange?.(null, '');
     };
+
+    // Date picker handlers
+    const handleAccessoryPress = () => {
+      onDatePickerRequest?.({ type: 'todo', id: item.id }, item.dueDate);
+    };
+
+    // Only show accessory view if this item is focused and has text
+    const shouldShowAccessory = isFocused && item.text.length > 0;
 
     const formatDueDate = (dueDate: string) => {
       const date = new Date(dueDate);
@@ -99,9 +132,11 @@ const TodoItem = forwardRef<TextInput, TodoItemProps>(
               ]}
               value={item.text}
               onChangeText={handleTextChange}
+              onFocus={handleFocus}
               onBlur={handleBlur}
               multiline={true}
               scrollEnabled={false}
+              inputAccessoryViewID={ACCESSORY_VIEW_ID}
             />
           </View>
           <Pressable onPress={handleCheckboxPress} hitSlop={8}>
@@ -131,6 +166,14 @@ const TodoItem = forwardRef<TextInput, TodoItemProps>(
             </Text>
           </View>
         )}
+
+        {/* Keyboard Accessory View - Only for this todo item */}
+        <KeyboardAccessoryView
+          nativeID={ACCESSORY_VIEW_ID}
+          onPress={handleAccessoryPress}
+        >
+          <Text style={styles.accessoryText}>Add Due Date</Text>
+        </KeyboardAccessoryView>
       </View>
     );
   }
@@ -197,5 +240,10 @@ const styles = StyleSheet.create({
   },
   itemTextCompleted: {
     color: 'rgba(0, 0, 0, 0.3)',
+  },
+  accessoryText: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '600',
   },
 });

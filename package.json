@@ -46,7 +46,7 @@
     "react-dom": "19.0.0",
     "react-native": "0.79.5",
     "react-native-cloud-storage": "^2.3.0",
-    "react-native-date-picker": "^5.0.13",
+    "react-native-date-picker": "https://github.com/burakharun/react-native-date-picker.git#fix/new-architecture-turbo-modules",
     "react-native-gesture-handler": "~2.24.0",
     "react-native-ios-context-menu": "itsramiel/react-native-ios-context-menu#fix/fix-ios-codegen-config",
     "react-native-ios-utilities": "^5.1.8",

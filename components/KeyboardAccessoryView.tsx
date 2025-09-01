@@ -11,17 +11,23 @@ import Animated, {
 interface KeyboardAccessoryViewProps {
   children?: React.ReactNode;
   nativeID: string;
+  onPress?: () => void;
+  visible?: boolean;
 }
 
 export default function KeyboardAccessoryView({
   children,
   nativeID,
+  onPress,
+  visible = true,
 }: KeyboardAccessoryViewProps) {
   const scale = useSharedValue(1);
+  const opacity = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => {
     return {
       transform: [{ scale: scale.value }],
+      opacity: opacity.value,
     };
   });
 
@@ -41,6 +47,12 @@ export default function KeyboardAccessoryView({
     console.log('Accessory view pressed out');
   };
 
+  const handlePress = () => {
+    if (!visible) return; // Don't handle press when not visible
+    console.log('Accessory view pressed');
+    onPress?.();
+  };
+
   return (
     <InputAccessoryView nativeID={nativeID}>
       <Animated.View style={[animatedStyle, styles.container]}>
@@ -53,9 +65,7 @@ export default function KeyboardAccessoryView({
               paddingHorizontal: 16,
               flex: 1,
             }}
-            onPress={() => {
-              console.log('Accessory view pressed');
-            }}
+            onPress={handlePress}
             onPressOut={handlePressOut}
           >
             {children}
@@ -84,7 +94,5 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 5,
-    zIndex: 1000,
   },
 });
