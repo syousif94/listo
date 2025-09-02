@@ -222,15 +222,22 @@ export default function TodoListCard({
 
   const formatDueDate = (dueDate: string) => {
     const date = new Date(dueDate);
-    const today = new Date();
+    const now = new Date();
+
+    // Calculate time difference in milliseconds
+    const diffTime = date.getTime() - now.getTime();
+    const diffMinutes = Math.round(diffTime / (1000 * 60));
+    const diffHours = Math.round(diffTime / (1000 * 60 * 60));
 
     // Reset time to start of day for accurate day comparison
+    const today = new Date();
     today.setHours(0, 0, 0, 0);
     const dateForComparison = new Date(date);
     dateForComparison.setHours(0, 0, 0, 0);
 
-    const diffTime = dateForComparison.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const diffDays = Math.ceil(
+      (dateForComparison.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    );
 
     // Format date as before
     const dateText = format(date, 'MMM dd');
@@ -241,22 +248,40 @@ export default function TodoListCard({
       .replace('PM', 'PM');
 
     let daysText = '';
-    if (diffDays === 0) {
-      daysText = 'today';
-    } else if (diffDays === 1) {
-      daysText = '1d';
-    } else if (diffDays === -1) {
-      daysText = '1d';
-    } else if (diffDays > 0) {
-      daysText = `${diffDays}d`;
-    } else {
-      daysText = `${Math.abs(diffDays)}d`;
+
+    // If less than 1 hour away, show minutes
+    if (Math.abs(diffMinutes) < 60) {
+      const absMinutes = Math.abs(diffMinutes);
+      if (absMinutes === 0) {
+        daysText = 'now';
+      } else {
+        daysText = `${absMinutes}m`;
+      }
+    }
+    // If between 1 hour and 1 day, show hours
+    else if (Math.abs(diffHours) < 24) {
+      const absHours = Math.abs(diffHours);
+      daysText = absHours === 1 ? '1hr' : `${absHours}hr`;
+    }
+    // If 1 day or more, use day format
+    else {
+      if (diffDays === 0) {
+        daysText = 'today';
+      } else if (diffDays === 1) {
+        daysText = '1d';
+      } else if (diffDays === -1) {
+        daysText = '1d';
+      } else if (diffDays > 0) {
+        daysText = `${diffDays}d`;
+      } else {
+        daysText = `${Math.abs(diffDays)}d`;
+      }
     }
 
     return {
       dateText: `${dateText} ${timeText}`,
       daysText,
-      isPastDue: diffDays < 0,
+      isPastDue: diffTime < 0,
     };
   };
 

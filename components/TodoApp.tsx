@@ -3,20 +3,12 @@ import { AppState, Dimensions, StyleSheet, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
 import { useAuthStore } from '../store/authStore';
+import DateTimePicker from './DateTimePicker';
 import LoginButton from './LoginButton';
 import RecordingButton from './RecordingButton';
 import TodoGrid from './TodoGrid';
 
 export default function TodoApp() {
-  // const [_editingListId, _setEditingListId] = useState<string | null>(null);
-  // const [showListEditor, setShowListEditor] = useState(false);
-
-  // Toast state from store
-  // const { toast, hideToast } = useTodoStore((state) => ({
-  //   toast: state.toast,
-  //   hideToast: state.hideToast,
-  // }));
-
   // Auth state from store
   const {
     isAuthenticated,
@@ -28,7 +20,7 @@ export default function TodoApp() {
   // Initialize auth on app start
   useEffect(() => {
     initializeAuth();
-  }, []);
+  }, [initializeAuth]);
 
   // Check Apple credential state when app comes to foreground
   useEffect(() => {
@@ -47,7 +39,7 @@ export default function TodoApp() {
     return () => {
       subscription?.remove();
     };
-  }, []);
+  }, [checkAppleCredentialState]);
 
   // Shared values for editor popup positioning
   const editorAnchorX = useSharedValue(0);
@@ -81,48 +73,21 @@ export default function TodoApp() {
 
   return (
     <View style={styles.container}>
-      {/* <AudioProcessingStatus /> */}
-
-      {/* Toast Notification */}
-      {/* <ToastNotification
-        message={toast.message}
-        isVisible={toast.isVisible}
-        onHide={hideToast}
-      /> */}
-
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         pagingEnabled
-        // scrollEnabled={!showListEditor}
       >
         <View style={[styles.viewContainer, pageStyle]}>
           <TodoGrid onEditList={handleEditList} />
         </View>
-        {/* <View style={[styles.viewContainer, pageStyle]}>
-          <DueDatesView />
-        </View> */}
       </ScrollView>
 
-      {/* Only show buttons after auth is initialized */}
       {isInitialized &&
         (isAuthenticated ? <RecordingButton /> : <LoginButton />)}
 
-      {/* <IntroScreen /> */}
-
-      {/* <FloatingTodoInput onEditComplete={handleEditComplete} />
-
-      {showListEditor && (
-        <ListEditorPopup
-          listId={editingListId}
-          isVisible={showListEditor}
-          onClose={handleEditComplete}
-          anchorX={editorAnchorX}
-          anchorY={editorAnchorY}
-          anchorWidth={editorAnchorWidth}
-          anchorHeight={editorAnchorHeight}
-        />
-      )} */}
+      {/* Global Date Time Picker */}
+      <DateTimePicker />
     </View>
   );
 }

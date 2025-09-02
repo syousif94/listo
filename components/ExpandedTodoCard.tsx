@@ -26,8 +26,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useDatePickerStore } from '../store/datePickerStore';
 import { useTodoStore } from '../store/todoStore';
-import DateTimePicker from './DateTimePicker';
 import NewTodoInput, { NewTodoInputRef } from './NewTodoInput';
 import TodoItemComponent from './TodoItem';
 
@@ -73,8 +73,9 @@ function ExpandedTodoCard({
     state.lists.find((l) => l.id === listId)
   );
   const deleteTodo = useTodoStore((state) => state.deleteTodo);
-  const updateTodo = useTodoStore((state) => state.updateTodo);
   const updateList = useTodoStore((state) => state.updateList);
+  const { setNewTodoDateCallback, clearNewTodoDateCallback } =
+    useDatePickerStore();
   const insets = useSafeAreaInsets();
   const windowDimensions = useWindowDimensions();
 
@@ -89,13 +90,6 @@ function ExpandedTodoCard({
   const [pendingNewTodoDate, setPendingNewTodoDate] = useState<
     string | undefined
   >(undefined);
-
-  // Shared date picker state
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [datePickerDate, setDatePickerDate] = useState(new Date());
-  const [datePickerTarget, setDatePickerTarget] = useState<
-    { type: 'todo'; id: string } | { type: 'newTodo' } | null
-  >(null);
 
   const footerHeight = useSharedValue(windowDimensions.height * 0.7); // 70% of window height
 
@@ -125,6 +119,21 @@ function ExpandedTodoCard({
   useEffect(() => {
     footerHeight.value = windowDimensions.height * 0.7;
   }, [windowDimensions.height, footerHeight]);
+
+  // Register callback for newTodo date picker confirmations
+  useEffect(() => {
+    const handleNewTodoDate = (targetListId: string, date: string) => {
+      if (targetListId === listId) {
+        setPendingNewTodoDate(date);
+      }
+    };
+
+    setNewTodoDateCallback(handleNewTodoDate);
+
+    return () => {
+      clearNewTodoDateCallback();
+    };
+  }, [listId, setNewTodoDateCallback, clearNewTodoDateCallback]);
 
   // Clean up refs when items are removed
   useEffect(() => {
@@ -393,7 +402,6 @@ function ExpandedTodoCard({
         showEmptyState={list?.items.length === 0}
         disabled={focusedTodoId !== null}
         onFocusChange={handleNewTodoFocusChange}
-        onDatePickerRequest={handleDatePickerRequest}
         pendingDueDate={pendingNewTodoDate}
         onClearPendingDate={handleClearPendingDate}
       />
@@ -419,75 +427,28 @@ function ExpandedTodoCard({
     );
   };
 
-  // Shared date picker handlers
-  const handleDatePickerRequest = (
-    target: { type: 'todo'; id: string } | { type: 'newTodo'; text?: string },
-    currentDate?: string
-  ) => {
-    // If it's a new todo request with text, create the todo first
-    if (target.type === 'newTodo' && target.text && target.text.trim()) {
-      const todoStore = useTodoStore.getState();
-      const trimmedText = target.text.trim();
-
-      // Create the new todo
-      todoStore.addTodoToList(listId, trimmedText);
-
-      // Clear the input immediately
-      newTodoInputRef.current?.clearAndBlur();
-
-      // Find the newly created todo (it will be the last one in the list)
-      const updatedList = todoStore.lists.find((l) => l.id === listId);
-      if (updatedList && updatedList.items.length > 0) {
-        const newTodo = updatedList.items[updatedList.items.length - 1];
-
-        // Clear pending date and switch to editing the new todo
-        setPendingNewTodoDate(undefined);
-        setDatePickerTarget({ type: 'todo', id: newTodo.id });
-        setDatePickerDate(new Date()); // New todo, start with current time
-        setShowDatePicker(true);
-      }
-    } else {
-      // Normal flow for existing todos or empty new todo
-      setDatePickerTarget(target);
-      setDatePickerDate(currentDate ? new Date(currentDate) : new Date());
-      setShowDatePicker(true);
-    }
-  };
-
-  const handleDateConfirm = (date: Date) => {
-    if (!datePickerTarget) return;
-
-    if (datePickerTarget.type === 'todo') {
-      updateTodo(listId, datePickerTarget.id, { dueDate: date.toISOString() });
-    } else if (datePickerTarget.type === 'newTodo') {
-      // Store the pending date for the new todo
-      setPendingNewTodoDate(date.toISOString());
-    }
-
-    setShowDatePicker(false);
-    setDatePickerTarget(null);
-  };
-
-  const handleDateCancel = () => {
-    setShowDatePicker(false);
-    setDatePickerTarget(null);
-  };
-
   const handleClearPendingDate = () => {
     setPendingNewTodoDate(undefined);
   };
 
   const formatDueDate = (dueDate: string) => {
     const date = new Date(dueDate);
-    const today = new Date();
+    const now = new Date();
+
+    // Calculate time difference in milliseconds
+    const diffTime = date.getTime() - now.getTime();
+    const diffMinutes = Math.round(diffTime / (1000 * 60));
+    const diffHours = Math.round(diffTime / (1000 * 60 * 60));
 
     // Reset time to start of day for accurate day comparison
+    const today = new Date();
     today.setHours(0, 0, 0, 0);
     const dateForComparison = new Date(date);
     dateForComparison.setHours(0, 0, 0, 0);
 
-    const diffTime = dateForComparison.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const diffDays = Math.ceil(
+      (dateForComparison.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    );
 
     // Format date as before
     const dateText = format(date, 'MMM dd');
@@ -498,22 +459,40 @@ function ExpandedTodoCard({
       .replace('PM', 'PM');
 
     let daysText = '';
-    if (diffDays === 0) {
-      daysText = 'today';
-    } else if (diffDays === 1) {
-      daysText = '1d';
-    } else if (diffDays === -1) {
-      daysText = '1d';
-    } else if (diffDays > 0) {
-      daysText = `${diffDays}d`;
-    } else {
-      daysText = `${Math.abs(diffDays)}d`;
+
+    // If less than 1 hour away, show minutes
+    if (Math.abs(diffMinutes) < 60) {
+      const absMinutes = Math.abs(diffMinutes);
+      if (absMinutes === 0) {
+        daysText = 'now';
+      } else {
+        daysText = `${absMinutes}m`;
+      }
+    }
+    // If between 1 hour and 1 day, show hours
+    else if (Math.abs(diffHours) < 24) {
+      const absHours = Math.abs(diffHours);
+      daysText = absHours === 1 ? '1hr' : `${absHours}hr`;
+    }
+    // If 1 day or more, use day format
+    else {
+      if (diffDays === 0) {
+        daysText = 'today';
+      } else if (diffDays === 1) {
+        daysText = '1d';
+      } else if (diffDays === -1) {
+        daysText = '1d';
+      } else if (diffDays > 0) {
+        daysText = `${diffDays}d`;
+      } else {
+        daysText = `${Math.abs(diffDays)}d`;
+      }
     }
 
     return {
       dateText: `${dateText} ${timeText}`,
       daysText,
-      isPastDue: diffDays < 0,
+      isPastDue: diffTime < 0,
     };
   };
 
@@ -710,7 +689,6 @@ function ExpandedTodoCard({
                   listId={listId}
                   onDeleteEmpty={(itemId) => deleteTodo(listId, itemId)}
                   onFocusChange={handleTodoFocusChange}
-                  onDatePickerRequest={handleDatePickerRequest}
                 />
               ))}
               {renderFooter()}
@@ -718,14 +696,6 @@ function ExpandedTodoCard({
           </Animated.View>
         </Animated.View>
       </GestureDetector>
-
-      {/* Shared Date Picker Modal */}
-      <DateTimePicker
-        isVisible={showDatePicker}
-        initialDate={datePickerDate}
-        onConfirm={handleDateConfirm}
-        onCancel={handleDateCancel}
-      />
     </View>
   );
 }

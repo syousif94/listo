@@ -1,5 +1,5 @@
 import { BlurView } from 'expo-blur';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { InputAccessoryView, PixelRatio, StyleSheet } from 'react-native';
 import { Pressable } from 'react-native-gesture-handler';
 import Animated, {
@@ -22,7 +22,14 @@ export default function KeyboardAccessoryView({
   visible = true,
 }: KeyboardAccessoryViewProps) {
   const scale = useSharedValue(1);
-  const opacity = useSharedValue(1);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    opacity.value = withSpring(visible ? 1 : 0, {
+      damping: 15,
+      stiffness: 300,
+    });
+  }, [visible]);
 
   const animatedStyle = useAnimatedStyle(() => {
     return {

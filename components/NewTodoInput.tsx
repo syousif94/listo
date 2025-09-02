@@ -1,5 +1,7 @@
+import { format } from 'date-fns';
 import React, {
   forwardRef,
+  useEffect,
   useImperativeHandle,
   useRef,
   useState,
@@ -11,6 +13,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import { useDatePickerStore } from '../store/datePickerStore';
 import { useTodoStore } from '../store/todoStore';
 import KeyboardAccessoryView from './KeyboardAccessoryView';
 
@@ -23,7 +26,6 @@ interface NewTodoInputProps {
   onFocusChange?: (isFocused: boolean, text?: string) => void;
   showEmptyState?: boolean;
   disabled?: boolean;
-  onDatePickerRequest?: (target: { type: 'newTodo'; text?: string }) => void;
   pendingDueDate?: string;
   onClearPendingDate?: () => void;
 }
@@ -35,13 +37,22 @@ const NewTodoInput = forwardRef<NewTodoInputRef, NewTodoInputProps>(
       onFocusChange,
       showEmptyState = false,
       disabled = false,
-      onDatePickerRequest,
       pendingDueDate,
       onClearPendingDate,
     },
     ref
   ) => {
     const addTodoToList = useTodoStore((state) => state.addTodoToList);
+    const {
+      showDatePicker,
+      isVisible: datePickerVisible,
+      target: datePickerTarget,
+      tempSelectedDate,
+      tempSelectedHour,
+      tempSelectedMinute,
+      tempSelectedAmPm,
+      tempSelectedYear,
+    } = useDatePickerStore();
     const [text, setText] = useState('');
     const [isFocused, setIsFocused] = useState(false);
     const inputRef = useRef<TextInput>(null);
@@ -53,6 +64,120 @@ const NewTodoInput = forwardRef<NewTodoInputRef, NewTodoInputProps>(
     const animatedStyle = useAnimatedStyle(() => ({
       opacity: opacity.value,
     }));
+
+    // Check if this input is currently being edited in the date picker
+    const isBeingEditedInDatePicker =
+      datePickerVisible &&
+      datePickerTarget?.type === 'newTodo' &&
+      datePickerTarget.listId === listId;
+
+    // Construct current date from temp picker values
+    const getCurrentDateFromPicker = () => {
+      const currentDate = new Date(tempSelectedDate);
+      currentDate.setHours(
+        tempSelectedAmPm === 1
+          ? tempSelectedHour === 12
+            ? 12
+            : tempSelectedHour + 12
+          : tempSelectedHour === 12
+          ? 0
+          : tempSelectedHour
+      );
+      currentDate.setMinutes(tempSelectedMinute);
+      currentDate.setFullYear(tempSelectedYear);
+      return currentDate;
+    };
+
+    // Format the temp editing date using the same logic as TodoItem
+    const formatEditingDate = () => {
+      const date = getCurrentDateFromPicker();
+      const now = new Date();
+
+      // Calculate time difference in milliseconds
+      const diffTime = date.getTime() - now.getTime();
+      const diffMinutes = Math.round(diffTime / (1000 * 60));
+      const diffHours = Math.round(diffTime / (1000 * 60 * 60));
+
+      // Reset time to start of day for accurate day comparison
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dateForComparison = new Date(date);
+      dateForComparison.setHours(0, 0, 0, 0);
+
+      const diffDays = Math.ceil(
+        (dateForComparison.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      // Format date as before
+      const dateText = format(date, 'MMM dd');
+
+      // Format time
+      const timeText = format(date, 'h:mmaaa')
+        .replace('AM', 'AM')
+        .replace('PM', 'PM');
+
+      let daysText = '';
+
+      // If less than 1 hour away, show minutes
+      if (Math.abs(diffMinutes) < 60) {
+        const absMinutes = Math.abs(diffMinutes);
+        if (absMinutes === 0) {
+          daysText = 'now';
+        } else {
+          daysText = `${absMinutes}m`;
+        }
+      }
+      // If between 1 hour and 1 day, show hours
+      else if (Math.abs(diffHours) < 24) {
+        const absHours = Math.abs(diffHours);
+        daysText = absHours === 1 ? '1hr' : `${absHours}hr`;
+      }
+      // If 1 day or more, use day format
+      else {
+        if (diffDays === 0) {
+          daysText = 'today';
+        } else if (diffDays === 1) {
+          daysText = '1d';
+        } else if (diffDays === -1) {
+          daysText = '1d';
+        } else if (diffDays > 0) {
+          daysText = `${diffDays}d`;
+        } else {
+          daysText = `${Math.abs(diffDays)}d`;
+        }
+      }
+
+      return {
+        dateText: `${dateText} ${timeText}`,
+        daysText,
+        isPastDue: diffTime < 0,
+      };
+    };
+
+    // Animation for date editing indicator
+    const dateEditingOpacity = useSharedValue(0);
+    const dateEditingAnimatedStyle = useAnimatedStyle(() => ({
+      opacity: dateEditingOpacity.value,
+    }));
+
+    // Handle fade animation for date editing indicator
+    useEffect(() => {
+      if (isBeingEditedInDatePicker) {
+        // Only animate if there was no pending date initially
+        if (!pendingDueDate) {
+          dateEditingOpacity.value = withTiming(1, { duration: 200 });
+        } else {
+          dateEditingOpacity.value = 1;
+        }
+      } else {
+        // Only animate if there's no pending date to show
+        if (!pendingDueDate) {
+          dateEditingOpacity.value = withTiming(0, { duration: 200 });
+        } else {
+          dateEditingOpacity.value = 0;
+        }
+      }
+    }, [isBeingEditedInDatePicker, pendingDueDate, dateEditingOpacity]);
 
     const handleFooterTap = () => {
       if (isFocused || disabled) return;
@@ -94,7 +219,7 @@ const NewTodoInput = forwardRef<NewTodoInputRef, NewTodoInputProps>(
 
     // Date picker handler
     const handleAccessoryPress = () => {
-      onDatePickerRequest?.({ type: 'newTodo', text });
+      showDatePicker({ type: 'newTodo', listId }, pendingDueDate);
     };
 
     // Expose methods to parent component
@@ -115,6 +240,8 @@ const NewTodoInput = forwardRef<NewTodoInputRef, NewTodoInputProps>(
     );
 
     console.log('rendering');
+
+    const shouldShowAccessory = text.trim().length > 0;
 
     return (
       <Pressable
@@ -139,6 +266,25 @@ const NewTodoInput = forwardRef<NewTodoInputRef, NewTodoInputProps>(
           </View>
           <View style={styles.checkbox} />
         </Animated.View>
+
+        {/* Date editing indicator for new todo */}
+        {isBeingEditedInDatePicker && (
+          <Animated.View style={[styles.dueDateRow, dateEditingAnimatedStyle]}>
+            <Text style={[styles.dueDateText, styles.editingDateText]}>
+              {formatEditingDate().dateText}
+            </Text>
+            <Text
+              style={[
+                styles.daysAwayText,
+                styles.editingDateText,
+                formatEditingDate().isPastDue && styles.pastDueText,
+              ]}
+            >
+              {formatEditingDate().daysText}
+            </Text>
+          </Animated.View>
+        )}
+
         {showEmptyState && !isFocused ? (
           <Animated.View style={styles.emptyContainer} pointerEvents={'none'}>
             <Text style={styles.emptyTitleText}>Empty List</Text>
@@ -153,6 +299,7 @@ const NewTodoInput = forwardRef<NewTodoInputRef, NewTodoInputProps>(
         <KeyboardAccessoryView
           nativeID={ACCESSORY_VIEW_ID}
           onPress={handleAccessoryPress}
+          visible={shouldShowAccessory}
         >
           <Text style={styles.accessoryText}>Add Due Date</Text>
         </KeyboardAccessoryView>
@@ -173,6 +320,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     paddingHorizontal: 20,
     justifyContent: 'flex-start',
+  },
+  editingDateText: {
+    color: '#007AFF', // Blue color for editing state
   },
   disabledContainer: {
     opacity: 0.5,
@@ -227,5 +377,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     fontWeight: '600',
+  },
+  dueDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  dueDateText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  daysAwayText: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  pastDueText: {
+    color: '#FF3B30',
   },
 });

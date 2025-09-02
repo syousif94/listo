@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import { BlurView } from 'expo-blur';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   FlatList,
   PixelRatio,
@@ -17,24 +17,75 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-interface DateTimePickerProps {
-  isVisible: boolean;
-  initialDate?: Date;
-  onConfirm: (date: Date) => void;
-  onCancel: () => void;
-}
+import { useDatePickerStore } from '../store/datePickerStore';
+import { useTodoStore } from '../store/todoStore';
 
 const ROW_HEIGHT = 44;
 const VISIBLE_ITEMS = 5;
 const PICKER_HEIGHT = ROW_HEIGHT * VISIBLE_ITEMS;
 
-export default function DateTimePicker({
-  isVisible,
-  initialDate = new Date(),
-  onConfirm,
-  onCancel,
-}: DateTimePickerProps) {
+// Animated picker item component
+const AnimatedPickerItem = ({
+  item,
+  index,
+  onPress,
+  isInitialValue,
+}: {
+  item: any;
+  index: number;
+  onPress: () => void;
+  isInitialValue: boolean;
+}) => {
+  const opacity = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
+
+  const handlePressIn = () => {
+    opacity.value = withTiming(0.3, { duration: 100 });
+  };
+
+  const handlePressOut = () => {
+    opacity.value = withTiming(1, { duration: 100 });
+  };
+
+  return (
+    <Pressable
+      style={styles.pickerItem}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      onPress={onPress}
+    >
+      <Animated.Text
+        style={[
+          styles.pickerText,
+          isInitialValue && styles.pickerTextBold,
+          animatedStyle,
+        ]}
+      >
+        {item.label}
+      </Animated.Text>
+    </Pressable>
+  );
+};
+
+export default function DateTimePicker() {
+  const {
+    isVisible,
+    initialDate,
+    target,
+    hideDatePicker,
+    setToday,
+    onNewTodoDate,
+    tempSelectedDate,
+    tempSelectedHour,
+    tempSelectedMinute,
+    tempSelectedAmPm,
+    tempSelectedYear,
+    updateTempValues,
+  } = useDatePickerStore();
+  const updateTodo = useTodoStore((state) => state.updateTodo);
   const insets = useSafeAreaInsets();
   const translateY = useSharedValue(PICKER_HEIGHT + 100);
   const opacity = useSharedValue(0);
@@ -46,18 +97,12 @@ export default function DateTimePicker({
   const ampmListRef = useRef<FlatList>(null);
   const yearListRef = useRef<FlatList>(null);
 
-  // Current selected values (React state, not shared values)
-  const [selectedDate, setSelectedDate] = useState(initialDate);
-  const [selectedHour, setSelectedHour] = useState(
-    initialDate.getHours() % 12 || 12
-  );
-  const [selectedMinute, setSelectedMinute] = useState(
-    initialDate.getMinutes()
-  );
-  const [selectedAmPm, setSelectedAmPm] = useState(
-    initialDate.getHours() >= 12 ? 1 : 0
-  );
-  const [selectedYear, setSelectedYear] = useState(initialDate.getFullYear());
+  // Current selected values from store
+  const selectedDate = tempSelectedDate;
+  const selectedHour = tempSelectedHour;
+  const selectedMinute = tempSelectedMinute;
+  const selectedAmPm = tempSelectedAmPm;
+  const selectedYear = tempSelectedYear;
 
   // Generate data arrays
   const generateDates = () => {
@@ -84,10 +129,10 @@ export default function DateTimePicker({
   };
 
   const generateMinutes = () => {
-    return Array.from({ length: 60 }, (_, i) => ({
+    return Array.from({ length: 12 }, (_, i) => ({
       id: i.toString(),
-      value: i,
-      label: i.toString().padStart(2, '0'),
+      value: i * 5,
+      label: (i * 5).toString().padStart(2, '0'),
     }));
   };
 
@@ -112,13 +157,7 @@ export default function DateTimePicker({
   const years = generateYears();
 
   useEffect(() => {
-    // Update selected values when initialDate changes
-    setSelectedDate(initialDate);
-    setSelectedHour(initialDate.getHours() % 12 || 12);
-    setSelectedMinute(initialDate.getMinutes());
-    setSelectedAmPm(initialDate.getHours() >= 12 ? 1 : 0);
-    setSelectedYear(initialDate.getFullYear());
-
+    // Animation and scrolling when visibility changes
     if (isVisible) {
       translateY.value = withSpring(0, { damping: 20, stiffness: 300 });
       opacity.value = withTiming(1, { duration: 200 });
@@ -127,13 +166,27 @@ export default function DateTimePicker({
       const todayIndex = dates.findIndex(
         (d) => d.date.toDateString() === initialDate.toDateString()
       );
+
+      // Find next 5-minute interval
+      const currentMinutes = initialDate.getMinutes();
+      const nextFiveMinInterval = Math.ceil(currentMinutes / 5) * 5;
+
+      let adjustedDate = new Date(initialDate);
+      let adjustedMinute = nextFiveMinInterval;
+
+      // Handle rollover to next hour
+      if (nextFiveMinInterval >= 60) {
+        adjustedDate.setHours(adjustedDate.getHours() + 1);
+        adjustedMinute = 0;
+      }
+
       const hourIndex = hours.findIndex(
-        (h) => h.value === (initialDate.getHours() % 12 || 12)
+        (h) => h.value === (adjustedDate.getHours() % 12 || 12)
       );
-      const minuteIndex = minutes.findIndex(
-        (m) => m.value === initialDate.getMinutes()
-      );
-      const ampmIndex = initialDate.getHours() >= 12 ? 1 : 0;
+
+      const minuteIndex = minutes.findIndex((m) => m.value === adjustedMinute);
+
+      const ampmIndex = adjustedDate.getHours() >= 12 ? 1 : 0;
       const yearIndex = years.findIndex(
         (y) => y.value === initialDate.getFullYear()
       );
@@ -165,19 +218,15 @@ export default function DateTimePicker({
       });
       opacity.value = withTiming(0, { duration: 200 });
     }
-  }, [
-    isVisible,
-    initialDate,
-    dates,
-    hours,
-    minutes,
-    years,
-    translateY,
-    opacity,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isVisible, initialDate]);
 
   const pickerStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
+  }));
+
+  const overlayStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
   }));
 
   const handleConfirm = () => {
@@ -201,7 +250,19 @@ export default function DateTimePicker({
     });
     opacity.value = withTiming(0, { duration: 200 }, (finished) => {
       if (finished) {
-        runOnJS(onConfirm)(finalDate);
+        const handleConfirmCallback = () => {
+          if (target) {
+            if (target.type === 'todo' && target.id) {
+              updateTodo(target.listId, target.id, {
+                dueDate: finalDate.toISOString(),
+              });
+            } else if (target.type === 'newTodo') {
+              onNewTodoDate?.(target.listId, finalDate.toISOString());
+            }
+          }
+          hideDatePicker();
+        };
+        runOnJS(handleConfirmCallback)();
       }
     });
   };
@@ -214,75 +275,229 @@ export default function DateTimePicker({
     });
     opacity.value = withTiming(0, { duration: 200 }, (finished) => {
       if (finished) {
-        runOnJS(onCancel)();
+        runOnJS(hideDatePicker)();
       }
     });
   };
 
-  const renderDateItem = ({ item, index }: { item: any; index: number }) => (
-    <Pressable
-      style={styles.pickerItem}
-      onPress={() => {
-        setSelectedDate(item.date);
-        dateListRef.current?.scrollToIndex({ index, animated: true });
-      }}
-    >
-      <Text style={styles.pickerText}>{item.label}</Text>
-    </Pressable>
-  );
+  const handleToday = () => {
+    const today = new Date();
 
-  const renderHourItem = ({ item, index }: { item: any; index: number }) => (
-    <Pressable
-      style={styles.pickerItem}
-      onPress={() => {
-        setSelectedHour(item.value);
-        hourListRef.current?.scrollToIndex({ index, animated: true });
-      }}
-    >
-      <Text style={styles.pickerText}>{item.label}</Text>
-    </Pressable>
-  );
+    // Calculate next 5-minute interval
+    const currentMinutes = today.getMinutes();
+    const nextFiveMinInterval = Math.ceil(currentMinutes / 5) * 5;
 
-  const renderMinuteItem = ({ item, index }: { item: any; index: number }) => (
-    <Pressable
-      style={styles.pickerItem}
-      onPress={() => {
-        setSelectedMinute(item.value);
-        minuteListRef.current?.scrollToIndex({ index, animated: true });
-      }}
-    >
-      <Text style={styles.pickerText}>{item.label}</Text>
-    </Pressable>
-  );
+    let adjustedDate = new Date(today);
+    let adjustedMinute = nextFiveMinInterval;
 
-  const renderAmPmItem = ({ item, index }: { item: any; index: number }) => (
-    <Pressable
-      style={styles.pickerItem}
-      onPress={() => {
-        setSelectedAmPm(item.value);
-        ampmListRef.current?.scrollToIndex({ index, animated: true });
-      }}
-    >
-      <Text style={styles.pickerText}>{item.label}</Text>
-    </Pressable>
-  );
+    // Handle rollover to next hour
+    if (nextFiveMinInterval >= 60) {
+      adjustedDate.setHours(adjustedDate.getHours() + 1);
+      adjustedMinute = 0;
+    }
 
-  const renderYearItem = ({ item, index }: { item: any; index: number }) => (
-    <Pressable
-      style={styles.pickerItem}
-      onPress={() => {
-        setSelectedYear(item.value);
-        yearListRef.current?.scrollToIndex({ index, animated: true });
-      }}
-    >
-      <Text style={styles.pickerText}>{item.label}</Text>
-    </Pressable>
-  );
+    updateTempValues({
+      date: adjustedDate,
+      hour: adjustedDate.getHours() % 12 || 12,
+      minute: adjustedMinute,
+      ampm: adjustedDate.getHours() >= 12 ? 1 : 0,
+      year: adjustedDate.getFullYear(),
+    });
 
-  if (!isVisible) return null;
+    // Scroll to today's values
+    const todayIndex = dates.findIndex(
+      (d) => d.date.toDateString() === adjustedDate.toDateString()
+    );
+    const hourIndex = hours.findIndex(
+      (h) => h.value === (adjustedDate.getHours() % 12 || 12)
+    );
+    const minuteIndex = minutes.findIndex((m) => m.value === adjustedMinute);
+    const ampmIndex = adjustedDate.getHours() >= 12 ? 1 : 0;
+    const yearIndex = years.findIndex(
+      (y) => y.value === adjustedDate.getFullYear()
+    );
+
+    dateListRef.current?.scrollToIndex({
+      index: Math.max(0, todayIndex),
+      animated: true,
+    });
+    hourListRef.current?.scrollToIndex({
+      index: Math.max(0, hourIndex),
+      animated: true,
+    });
+    minuteListRef.current?.scrollToIndex({
+      index: Math.max(0, minuteIndex),
+      animated: true,
+    });
+    ampmListRef.current?.scrollToIndex({
+      index: Math.max(0, ampmIndex),
+      animated: true,
+    });
+    yearListRef.current?.scrollToIndex({
+      index: Math.max(0, yearIndex),
+      animated: true,
+    });
+
+    setToday();
+  };
+
+  const renderDateItem = ({ item, index }: { item: any; index: number }) => {
+    const isInitialValue =
+      item.date.toDateString() === initialDate.toDateString();
+
+    const handlePress = () => {
+      updateTempValues({ date: item.date });
+      dateListRef.current?.scrollToIndex({ index, animated: true });
+    };
+
+    return (
+      <AnimatedPickerItem
+        item={item}
+        index={index}
+        onPress={handlePress}
+        isInitialValue={isInitialValue}
+      />
+    );
+  };
+
+  const renderHourItem = ({ item, index }: { item: any; index: number }) => {
+    const isInitialValue = item.value === (initialDate.getHours() % 12 || 12);
+
+    const handlePress = () => {
+      updateTempValues({ hour: item.value });
+      hourListRef.current?.scrollToIndex({ index, animated: true });
+    };
+
+    return (
+      <AnimatedPickerItem
+        item={item}
+        index={index}
+        onPress={handlePress}
+        isInitialValue={isInitialValue}
+      />
+    );
+  };
+
+  const renderMinuteItem = ({ item, index }: { item: any; index: number }) => {
+    // For minutes, we need to check against the rounded initial minute
+    const currentMinutes = initialDate.getMinutes();
+    const nextFiveMinInterval = Math.ceil(currentMinutes / 5) * 5;
+    const adjustedMinute = nextFiveMinInterval >= 60 ? 0 : nextFiveMinInterval;
+    const isInitialValue = item.value === adjustedMinute;
+
+    const handlePress = () => {
+      updateTempValues({ minute: item.value });
+      minuteListRef.current?.scrollToIndex({ index, animated: true });
+    };
+
+    return (
+      <AnimatedPickerItem
+        item={item}
+        index={index}
+        onPress={handlePress}
+        isInitialValue={isInitialValue}
+      />
+    );
+  };
+
+  const renderAmPmItem = ({ item, index }: { item: any; index: number }) => {
+    // Need to account for potential hour rollover from minute adjustment
+    const currentMinutes = initialDate.getMinutes();
+    const nextFiveMinInterval = Math.ceil(currentMinutes / 5) * 5;
+    let adjustedDate = new Date(initialDate);
+    if (nextFiveMinInterval >= 60) {
+      adjustedDate.setHours(adjustedDate.getHours() + 1);
+    }
+    const isInitialValue =
+      item.value === (adjustedDate.getHours() >= 12 ? 1 : 0);
+
+    const handlePress = () => {
+      updateTempValues({ ampm: item.value });
+      ampmListRef.current?.scrollToIndex({ index, animated: true });
+    };
+
+    return (
+      <AnimatedPickerItem
+        item={item}
+        index={index}
+        onPress={handlePress}
+        isInitialValue={isInitialValue}
+      />
+    );
+  };
+
+  const renderYearItem = ({ item, index }: { item: any; index: number }) => {
+    const isInitialValue = item.value === initialDate.getFullYear();
+
+    const handlePress = () => {
+      updateTempValues({ year: item.value });
+      yearListRef.current?.scrollToIndex({ index, animated: true });
+    };
+
+    return (
+      <AnimatedPickerItem
+        item={item}
+        index={index}
+        onPress={handlePress}
+        isInitialValue={isInitialValue}
+      />
+    );
+  };
+
+  const handleDateScrollEnd = (event: any) => {
+    const offset = event.nativeEvent.contentOffset.y;
+    const index = Math.round(offset / ROW_HEIGHT);
+    const selectedItem = dates[index];
+    if (selectedItem) {
+      updateTempValues({ date: selectedItem.date });
+    }
+  };
+
+  const handleHourScrollEnd = (event: any) => {
+    const offset = event.nativeEvent.contentOffset.y;
+    const index = Math.round(offset / ROW_HEIGHT);
+    const selectedItem = hours[index];
+    if (selectedItem) {
+      updateTempValues({ hour: selectedItem.value });
+    }
+  };
+
+  const handleMinuteScrollEnd = (event: any) => {
+    const offset = event.nativeEvent.contentOffset.y;
+    const index = Math.round(offset / ROW_HEIGHT);
+    const selectedItem = minutes[index];
+    if (selectedItem) {
+      updateTempValues({ minute: selectedItem.value });
+    }
+  };
+
+  const handleAmPmScrollEnd = (event: any) => {
+    const offset = event.nativeEvent.contentOffset.y;
+    const index = Math.round(offset / ROW_HEIGHT);
+    const selectedItem = ampmData[index];
+    if (selectedItem) {
+      updateTempValues({ ampm: selectedItem.value });
+    }
+  };
+
+  const handleYearScrollEnd = (event: any) => {
+    const offset = event.nativeEvent.contentOffset.y;
+    const index = Math.round(offset / ROW_HEIGHT);
+    const selectedItem = years[index];
+    if (selectedItem) {
+      updateTempValues({ year: selectedItem.value });
+    }
+  };
+
+  // if (!isVisible) return null;
 
   return (
     <>
+      {/* Overlay */}
+      <Animated.View style={[styles.overlay, overlayStyle]}>
+        <Pressable style={styles.overlayPressable} onPress={handleCancel} />
+      </Animated.View>
+
       {/* Picker */}
       <Animated.View
         style={[styles.pickerContainer, pickerStyle, { bottom: insets.bottom }]}
@@ -290,12 +505,12 @@ export default function DateTimePicker({
         <BlurView intensity={80} style={styles.pickerBlur} tint="extraLight">
           {/* Header */}
           <View style={styles.header}>
-            <Pressable onPress={handleCancel} style={styles.headerButton}>
-              <Text style={styles.cancelText}>Cancel</Text>
+            <Pressable onPress={handleToday} style={styles.headerButton}>
+              <Text style={styles.todayText}>Now</Text>
             </Pressable>
             <Text style={styles.headerTitle}>Set Due Date</Text>
             <Pressable onPress={handleConfirm} style={styles.headerButton}>
-              <Text style={styles.confirmText}>Set</Text>
+              <Text style={styles.confirmText}>Save</Text>
             </Pressable>
           </View>
 
@@ -310,7 +525,7 @@ export default function DateTimePicker({
                 keyExtractor={(item) => item.id}
                 showsVerticalScrollIndicator={false}
                 snapToInterval={ROW_HEIGHT}
-                decelerationRate="fast"
+                onMomentumScrollEnd={handleDateScrollEnd}
                 contentContainerStyle={styles.listContainer}
                 getItemLayout={(data, index) => ({
                   length: ROW_HEIGHT,
@@ -331,7 +546,7 @@ export default function DateTimePicker({
                 keyExtractor={(item) => item.id}
                 showsVerticalScrollIndicator={false}
                 snapToInterval={ROW_HEIGHT}
-                decelerationRate="fast"
+                onMomentumScrollEnd={handleHourScrollEnd}
                 contentContainerStyle={styles.listContainer}
                 getItemLayout={(data, index) => ({
                   length: ROW_HEIGHT,
@@ -352,7 +567,7 @@ export default function DateTimePicker({
                 keyExtractor={(item) => item.id}
                 showsVerticalScrollIndicator={false}
                 snapToInterval={ROW_HEIGHT}
-                decelerationRate="fast"
+                onMomentumScrollEnd={handleMinuteScrollEnd}
                 contentContainerStyle={styles.listContainer}
                 getItemLayout={(data, index) => ({
                   length: ROW_HEIGHT,
@@ -373,7 +588,7 @@ export default function DateTimePicker({
                 keyExtractor={(item) => item.id}
                 showsVerticalScrollIndicator={false}
                 snapToInterval={ROW_HEIGHT}
-                decelerationRate="fast"
+                onMomentumScrollEnd={handleAmPmScrollEnd}
                 contentContainerStyle={styles.listContainer}
                 getItemLayout={(data, index) => ({
                   length: ROW_HEIGHT,
@@ -394,7 +609,7 @@ export default function DateTimePicker({
                 keyExtractor={(item) => item.id}
                 showsVerticalScrollIndicator={false}
                 snapToInterval={ROW_HEIGHT}
-                decelerationRate="fast"
+                onMomentumScrollEnd={handleYearScrollEnd}
                 contentContainerStyle={styles.listContainer}
                 getItemLayout={(data, index) => ({
                   length: ROW_HEIGHT,
@@ -414,6 +629,18 @@ export default function DateTimePicker({
 }
 
 const styles = StyleSheet.create({
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0)',
+    zIndex: 1000,
+  },
+  overlayPressable: {
+    flex: 1,
+  },
   pickerContainer: {
     position: 'absolute',
     left: 16,
@@ -423,7 +650,7 @@ const styles = StyleSheet.create({
   },
   pickerBlur: {
     flex: 1,
-    borderRadius: 16,
+    borderRadius: 25,
     overflow: 'hidden',
     borderWidth: 1 / PixelRatio.get(),
     borderColor: 'rgba(0, 0, 0, 0.1)',
@@ -448,6 +675,11 @@ const styles = StyleSheet.create({
   cancelText: {
     fontSize: 16,
     color: '#666',
+  },
+  todayText: {
+    fontSize: 16,
+    color: '#007AFF',
+    fontWeight: '600',
   },
   confirmText: {
     fontSize: 16,
@@ -480,6 +712,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#333',
   },
+  pickerTextBold: {
+    fontWeight: '600',
+  },
   divider: {
     width: 1 / PixelRatio.get(),
     height: PICKER_HEIGHT,
@@ -489,7 +724,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    top: 60 + ROW_HEIGHT * 2, // Header height + 2 rows offset
+    top: 60 + (ROW_HEIGHT * VISIBLE_ITEMS) / 2 - ROW_HEIGHT / 1.5,
     height: ROW_HEIGHT,
     borderTopWidth: 1 / PixelRatio.get(),
     borderBottomWidth: 1 / PixelRatio.get(),
