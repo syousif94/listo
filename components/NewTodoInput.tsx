@@ -1,3 +1,4 @@
+import { EvilIcons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import React, {
   forwardRef,
@@ -301,6 +302,7 @@ const NewTodoInput = forwardRef<NewTodoInputRef, NewTodoInputProps>(
           onPress={handleAccessoryPress}
           visible={shouldShowAccessory}
         >
+          <EvilIcons name="calendar" size={24} color="black" />
           <Text style={styles.accessoryText}>Add Due Date</Text>
         </KeyboardAccessoryView>
       </Pressable>
@@ -377,6 +379,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     fontWeight: '600',
+    marginLeft: 4,
+    marginRight: 4,
   },
   dueDateRow: {
     flexDirection: 'row',

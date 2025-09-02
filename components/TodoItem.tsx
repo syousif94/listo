@@ -1,3 +1,4 @@
+import { EvilIcons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import React, { forwardRef, useEffect } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -332,7 +333,8 @@ const TodoItem = forwardRef<TextInput, TodoItemProps>(
           onPress={handleAccessoryPress}
           visible={shouldShowAccessory}
         >
-          <Text style={styles.accessoryText}>Add Due Date</Text>
+          <EvilIcons name="calendar" size={24} color="black" />
+          <Text style={styles.accessoryText}>Due Date</Text>
         </KeyboardAccessoryView>
       </View>
     );
@@ -414,5 +416,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     fontWeight: '600',
+    marginLeft: 4,
+    marginRight: 4,
   },
 });

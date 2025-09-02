@@ -69,8 +69,9 @@ export default function KeyboardAccessoryView({
             style={{
               justifyContent: 'center',
               alignItems: 'center',
-              paddingHorizontal: 16,
+              paddingHorizontal: 12,
               flex: 1,
+              flexDirection: 'row',
             }}
             onPress={handlePress}
             onPressOut={handlePressOut}
@@ -87,7 +88,7 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
   },
   blurContainer: {
     height: 40,
