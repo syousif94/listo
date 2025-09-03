@@ -352,7 +352,7 @@ export default function RecordingButton({
         language: 'en-US',
       });
     } catch (error) {
-      console.error('Failed to start speech recognition:', error);
+      console.log('Failed to start speech recognition:', error);
       // Revert to idle state if recognition fails
       setRecordingState(RecordingState.IDLE);
       width.value = withSpring(100, {
@@ -373,7 +373,7 @@ export default function RecordingButton({
       await speechRecognitionService.stopListening();
       // State transitions will be handled by the speech recognition callbacks
     } catch (error) {
-      console.error('Failed to stop speech recognition:', error);
+      console.log('Failed to stop speech recognition:', error);
     }
   };
 
@@ -398,7 +398,7 @@ export default function RecordingButton({
       listeningViewOpacity.value = withTiming(0, { duration: 200 });
       recordViewOpacity.value = withTiming(1, { duration: 200 });
     } catch (error) {
-      console.error('Failed to cancel speech recognition:', error);
+      console.log('Failed to cancel speech recognition:', error);
     }
   };
   const handlePressIn = () => {

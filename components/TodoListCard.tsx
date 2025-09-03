@@ -169,7 +169,7 @@ export default function TodoListCard({
         title: filename,
       });
     } catch (error) {
-      console.error('Error sharing list:', error);
+      console.log('Error sharing list:', error);
     }
   };
 

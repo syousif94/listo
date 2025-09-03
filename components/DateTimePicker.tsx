@@ -320,7 +320,7 @@ export default function DateTimePicker() {
           }
           hideDatePicker();
         } catch (error) {
-          console.error('Error in handleConfirmCallback:', error);
+          console.log('Error in handleConfirmCallback:', error);
           hideDatePicker();
         }
       };
@@ -340,7 +340,7 @@ export default function DateTimePicker() {
         }
       });
     } catch (error) {
-      console.error('Error in handleConfirm:', error);
+      console.log('Error in handleConfirm:', error);
       hideDatePicker();
     }
   };
@@ -367,7 +367,7 @@ export default function DateTimePicker() {
         }
       });
     } catch (error) {
-      console.error('Error in handleClear:', error);
+      console.log('Error in handleClear:', error);
       hideDatePicker();
     }
   };

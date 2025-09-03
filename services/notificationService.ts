@@ -65,7 +65,7 @@ export class NotificationService {
       this.pushToken = pushTokenData.data;
       return this.pushToken;
     } catch (error) {
-      console.error('Failed to get push token:', error);
+      console.log('Failed to get push token:', error);
       return null;
     }
   }
@@ -148,10 +148,10 @@ export class NotificationService {
       if (response.ok) {
         console.log('Device token synced successfully');
       } else {
-        console.error('Failed to sync device token:', await response.text());
+        console.log('Failed to sync device token:', await response.text());
       }
     } catch (error) {
-      console.error('Error syncing device token:', error);
+      console.log('Error syncing device token:', error);
     }
   }
 

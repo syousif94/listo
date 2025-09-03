@@ -267,7 +267,7 @@ export async function processTranscriptWithChat(
             console.warn(`⚠️ Unknown tool call: ${functionName}`);
         }
       } catch (toolError) {
-        console.error('❌ Error processing tool call:', toolCall, toolError);
+        console.log('❌ Error processing tool call:', toolCall, toolError);
         // Continue processing other tool calls even if one fails
       }
     }
