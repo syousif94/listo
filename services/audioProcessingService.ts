@@ -32,10 +32,16 @@ export async function processTranscriptWithChat(
 
     console.log('📋 Full transcript with current lists:', fullTranscript);
 
-    // Get chat history formatted for API (excluding system messages to avoid duplication)
-    const previousMessages = todoStore
-      .getChatHistoryForAPI()
-      .filter((msg) => msg.role !== 'system');
+    // Get chat history formatted for API (excluding system messages and assistant messages without tool calls)
+    const previousMessages = todoStore.getChatHistoryForAPI().filter((msg) => {
+      if (msg.role === 'system') return false;
+      if (
+        msg.role === 'assistant' &&
+        (!msg.tool_calls || msg.tool_calls.length === 0)
+      )
+        return false;
+      return true;
+    });
 
     console.log(
       '💬 Including previous messages in context:',
@@ -158,6 +164,8 @@ export async function processTranscriptWithChat(
       };
     };
     console.log('✅ Chat API response received:', result);
+
+    console.log('Chat Message', result.choices?.[0]?.message);
 
     // Update token usage in store if present
     if (result.tokenUsage) {
