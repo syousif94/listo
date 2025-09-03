@@ -165,7 +165,17 @@ export async function processTranscriptWithChat(
     };
     console.log('✅ Chat API response received:', result);
 
-    console.log('Chat Message', result.choices?.[0]?.message);
+    const chatMessageContent = result.choices?.[0]?.message?.content;
+    console.log('Chat Message', chatMessageContent);
+
+    if (chatMessageContent) {
+      try {
+        const chatToolCall = JSON.parse(
+          chatMessageContent.replaceAll(`\\"`, `"`)
+        );
+        console.log('Parsed chat tool call:', chatToolCall);
+      } catch (e) {}
+    }
 
     // Update token usage in store if present
     if (result.tokenUsage) {

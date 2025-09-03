@@ -188,6 +188,148 @@ app.post('/auth/apple', async (c) => {
   }
 });
 
+// Function to try rewriting JSON content to proper tool calls
+function tryRewriteJsonToToolCalls(message: string, originalResponse: any) {
+  try {
+    // Try to extract JSON from the message
+    let jsonContent = message.trim();
+
+    // If the message is wrapped in quotes, remove them
+    if (jsonContent.startsWith('"') && jsonContent.endsWith('"')) {
+      jsonContent = jsonContent.slice(1, -1);
+    }
+
+    // Unescape quotes
+    jsonContent = jsonContent.replace(/\\"/g, '"');
+
+    // Try to parse the JSON
+    const parsedJson = JSON.parse(jsonContent);
+
+    // Check if it has the expected structure
+    if (parsedJson.name && parsedJson.parameters) {
+      // Map parameters to arguments and create proper tool call structure
+      const toolCall = {
+        id: parsedJson.id || `${parsedJson.name}_${Date.now()}`,
+        type: 'function' as const,
+        function: {
+          name: parsedJson.name,
+          arguments: JSON.stringify(parsedJson.parameters),
+        },
+      };
+
+      // Create a new response with the proper tool call structure
+      const rewrittenResponse = {
+        ...originalResponse,
+        choices: [
+          {
+            ...originalResponse.choices[0],
+            message: {
+              ...originalResponse.choices[0].message,
+              content: null,
+              tool_calls: [toolCall],
+            },
+          },
+        ],
+      };
+
+      console.log(
+        'Successfully parsed and rewrote JSON to tool call:',
+        toolCall
+      );
+      return rewrittenResponse;
+    }
+
+    // Try to handle array of tool calls
+    if (Array.isArray(parsedJson)) {
+      const toolCalls = parsedJson
+        .map((item, index) => {
+          if (item.name && item.parameters) {
+            return {
+              id: item.id || `${item.name}_${Date.now()}_${index}`,
+              type: 'function' as const,
+              function: {
+                name: item.name,
+                arguments: JSON.stringify(item.parameters),
+              },
+            };
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      if (toolCalls.length > 0) {
+        const rewrittenResponse = {
+          ...originalResponse,
+          choices: [
+            {
+              ...originalResponse.choices[0],
+              message: {
+                ...originalResponse.choices[0].message,
+                content: null,
+                tool_calls: toolCalls,
+              },
+            },
+          ],
+        };
+
+        console.log(
+          'Successfully parsed and rewrote JSON array to tool calls:',
+          toolCalls
+        );
+        return rewrittenResponse;
+      }
+    }
+
+    // Try to handle tool_calls wrapper
+    if (parsedJson.tool_calls && Array.isArray(parsedJson.tool_calls)) {
+      const toolCalls = parsedJson.tool_calls
+        .map((item: any, index: number) => {
+          if (item.name && item.arguments) {
+            return {
+              id: item.id || `${item.name}_${Date.now()}_${index}`,
+              type: 'function' as const,
+              function: {
+                name: item.name,
+                arguments:
+                  typeof item.arguments === 'string'
+                    ? item.arguments
+                    : JSON.stringify(item.arguments),
+              },
+            };
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      if (toolCalls.length > 0) {
+        const rewrittenResponse = {
+          ...originalResponse,
+          choices: [
+            {
+              ...originalResponse.choices[0],
+              message: {
+                ...originalResponse.choices[0].message,
+                content: null,
+                tool_calls: toolCalls,
+              },
+            },
+          ],
+        };
+
+        console.log(
+          'Successfully parsed and rewrote tool_calls wrapper to tool calls:',
+          toolCalls
+        );
+        return rewrittenResponse;
+      }
+    }
+  } catch (error) {
+    console.log('Failed to parse JSON content as tool call:', error);
+  }
+
+  return null;
+}
+
 // Non-streaming endpoint for transcript processing
 app.post('/chat', optionalAuthMiddleware, async (c) => {
   try {
@@ -467,29 +609,33 @@ app.post('/chat', optionalAuthMiddleware, async (c) => {
         });
 
         // Check if response contains JSON content instead of tool calls
-        const message = response.choices[0]?.message;
-        if (message?.content) {
-          try {
-            JSON.parse(message.content);
-            // If we can parse the content as JSON, this is likely an invalid response
-            console.log(
-              `Response contains JSON content instead of tool calls (attempt ${attempt}/${maxRetries}):`,
-              message.content
-            );
+        const message = response.choices[0]?.message?.content;
+        if (message?.includes('{') && message?.includes('}')) {
+          console.log(
+            `Response contains JSON content instead of tool calls (attempt ${attempt}/${maxRetries}):`,
+            message
+          );
 
-            // If this is the last attempt, we'll use this response anyway
-            if (attempt === maxRetries) {
-              console.log(
-                'Max retries reached, using response with JSON content'
-              );
-              break;
-            }
-
-            // Continue to next attempt
-            continue;
-          } catch {
-            // Content is not valid JSON, this is fine
+          // Try to parse and rewrite the response
+          const rewrittenResponse = tryRewriteJsonToToolCalls(
+            message,
+            response
+          );
+          if (rewrittenResponse) {
+            console.log('Successfully rewrote JSON content to tool calls');
+            response = rewrittenResponse;
+            break;
           }
+
+          // If this is the last attempt, we'll use this response anyway
+          if (attempt === maxRetries) {
+            console.log(
+              'Max retries reached, using response with JSON content'
+            );
+            break;
+          }
+
+          continue;
         }
 
         // If we get here, the call was successful and doesn't contain unwanted JSON

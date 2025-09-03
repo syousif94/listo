@@ -114,7 +114,6 @@ export default function DateTimePicker() {
     initialDate,
     target,
     hideDatePicker,
-    setToday,
     onNewTodoDate,
     tempSelectedDate,
     tempSelectedHour,
@@ -304,8 +303,6 @@ export default function DateTimePicker() {
 
       const finalDateISO = finalDate.toISOString();
 
-      console.log('Final selected date:', finalDate);
-
       // Define callback outside of withTiming
       const handleConfirmCallback = (dateISO: string) => {
         try {
@@ -387,356 +384,6 @@ export default function DateTimePicker() {
         runOnJS(hideDatePicker)();
       }
     });
-  };
-
-  // Check if current picker values match the initial date
-  const doesPickerMatchInitialDate = () => {
-    if (!initialDate) return false;
-
-    const pickerDate = new Date(selectedDate);
-    pickerDate.setHours(
-      selectedAmPm === 1
-        ? selectedHour === 12
-          ? 12
-          : selectedHour + 12
-        : selectedHour === 12
-        ? 0
-        : selectedHour
-    );
-    pickerDate.setMinutes(selectedMinute);
-    pickerDate.setFullYear(selectedYear);
-
-    // Compare to 5-minute precision
-    const initialMinutes = Math.floor(initialDate.getMinutes() / 5) * 5;
-    const pickerMinutes = Math.floor(pickerDate.getMinutes() / 5) * 5;
-
-    return (
-      pickerDate.toDateString() === initialDate.toDateString() &&
-      pickerDate.getHours() === initialDate.getHours() &&
-      pickerMinutes === initialMinutes
-    );
-  };
-
-  // Check if current picker values match "now"
-  const doesPickerMatchNow = () => {
-    const now = new Date();
-    const currentMinutes = now.getMinutes();
-    const nextFiveMinInterval = Math.ceil(currentMinutes / 5) * 5;
-
-    let adjustedNow = new Date(now);
-    let adjustedMinute = nextFiveMinInterval;
-
-    if (nextFiveMinInterval >= 60) {
-      adjustedNow.setHours(adjustedNow.getHours() + 1);
-      adjustedMinute = 0;
-    }
-
-    const pickerDate = new Date(selectedDate);
-    pickerDate.setHours(
-      selectedAmPm === 1
-        ? selectedHour === 12
-          ? 12
-          : selectedHour + 12
-        : selectedHour === 12
-        ? 0
-        : selectedHour
-    );
-    pickerDate.setMinutes(selectedMinute);
-    pickerDate.setFullYear(selectedYear);
-
-    return (
-      pickerDate.toDateString() === adjustedNow.toDateString() &&
-      pickerDate.getHours() === adjustedNow.getHours() &&
-      selectedMinute === adjustedMinute
-    );
-  };
-
-  const handleNowOrReset = () => {
-    const hasInitialDate = target?.type === 'todo' && initialDate;
-
-    if (hasInitialDate) {
-      const matchesInitial = doesPickerMatchInitialDate();
-      const matchesNow = doesPickerMatchNow();
-
-      if (matchesNow || matchesInitial) {
-        // If currently showing "now" or original date, switch to the other
-        if (matchesNow) {
-          // Currently at "now", switch back to original date
-          const originalDate = new Date(initialDate);
-
-          updateTempValues({
-            date: originalDate,
-            hour: originalDate.getHours() % 12 || 12,
-            minute: originalDate.getMinutes(),
-            ampm: originalDate.getHours() >= 12 ? 1 : 0,
-            year: originalDate.getFullYear(),
-          });
-
-          // Scroll to original values
-          const originalDateIndex = dates.findIndex(
-            (d) => d.date.toDateString() === originalDate.toDateString()
-          );
-          const hourIndex = hours.findIndex(
-            (h) => h.value === (originalDate.getHours() % 12 || 12)
-          );
-          const minuteIndex = minutes.findIndex(
-            (m) => m.value === Math.floor(originalDate.getMinutes() / 5) * 5
-          );
-          const ampmIndex = originalDate.getHours() >= 12 ? 1 : 0;
-          const yearIndex = years.findIndex(
-            (y) => y.value === originalDate.getFullYear()
-          );
-
-          if (originalDateIndex >= 0) {
-            dateListRef.current?.scrollToIndex({
-              index: originalDateIndex,
-              animated: true,
-            });
-          }
-          if (hourIndex >= 0) {
-            hourListRef.current?.scrollToIndex({
-              index: hourIndex,
-              animated: true,
-            });
-          }
-          if (minuteIndex >= 0) {
-            minuteListRef.current?.scrollToIndex({
-              index: minuteIndex,
-              animated: true,
-            });
-          }
-          if (ampmIndex >= 0) {
-            ampmListRef.current?.scrollToIndex({
-              index: ampmIndex,
-              animated: true,
-            });
-          }
-          if (yearIndex >= 0) {
-            yearListRef.current?.scrollToIndex({
-              index: yearIndex,
-              animated: true,
-            });
-          }
-        } else {
-          // Currently at original date, switch to "now"
-          const today = new Date();
-          const currentMinutes = today.getMinutes();
-          const nextFiveMinInterval = Math.ceil(currentMinutes / 5) * 5;
-
-          let adjustedDate = new Date(today);
-          let adjustedMinute = nextFiveMinInterval;
-
-          if (nextFiveMinInterval >= 60) {
-            adjustedDate.setHours(adjustedDate.getHours() + 1);
-            adjustedMinute = 0;
-          }
-
-          updateTempValues({
-            date: adjustedDate,
-            hour: adjustedDate.getHours() % 12 || 12,
-            minute: adjustedMinute,
-            ampm: adjustedDate.getHours() >= 12 ? 1 : 0,
-            year: adjustedDate.getFullYear(),
-          });
-
-          // Scroll to today's values
-          const todayIndex = dates.findIndex(
-            (d) => d.date.toDateString() === adjustedDate.toDateString()
-          );
-          const hourIndex = hours.findIndex(
-            (h) => h.value === (adjustedDate.getHours() % 12 || 12)
-          );
-          const minuteIndex = minutes.findIndex(
-            (m) => m.value === adjustedMinute
-          );
-          const ampmIndex = adjustedDate.getHours() >= 12 ? 1 : 0;
-          const yearIndex = years.findIndex(
-            (y) => y.value === adjustedDate.getFullYear()
-          );
-
-          if (todayIndex >= 0) {
-            dateListRef.current?.scrollToIndex({
-              index: todayIndex,
-              animated: true,
-            });
-          }
-          if (hourIndex >= 0) {
-            hourListRef.current?.scrollToIndex({
-              index: hourIndex,
-              animated: true,
-            });
-          }
-          if (minuteIndex >= 0) {
-            minuteListRef.current?.scrollToIndex({
-              index: minuteIndex,
-              animated: true,
-            });
-          }
-          if (ampmIndex >= 0) {
-            ampmListRef.current?.scrollToIndex({
-              index: ampmIndex,
-              animated: true,
-            });
-          }
-          if (yearIndex >= 0) {
-            yearListRef.current?.scrollToIndex({
-              index: yearIndex,
-              animated: true,
-            });
-          }
-
-          setToday();
-        }
-      } else {
-        // Currently at some other date, go back to original
-        const originalDate = new Date(initialDate);
-
-        updateTempValues({
-          date: originalDate,
-          hour: originalDate.getHours() % 12 || 12,
-          minute: originalDate.getMinutes(),
-          ampm: originalDate.getHours() >= 12 ? 1 : 0,
-          year: originalDate.getFullYear(),
-        });
-
-        // Scroll to original values
-        const originalDateIndex = dates.findIndex(
-          (d) => d.date.toDateString() === originalDate.toDateString()
-        );
-        const hourIndex = hours.findIndex(
-          (h) => h.value === (originalDate.getHours() % 12 || 12)
-        );
-        const minuteIndex = minutes.findIndex(
-          (m) => m.value === Math.floor(originalDate.getMinutes() / 5) * 5
-        );
-        const ampmIndex = originalDate.getHours() >= 12 ? 1 : 0;
-        const yearIndex = years.findIndex(
-          (y) => y.value === originalDate.getFullYear()
-        );
-
-        if (originalDateIndex >= 0) {
-          dateListRef.current?.scrollToIndex({
-            index: originalDateIndex,
-            animated: true,
-          });
-        }
-        if (hourIndex >= 0) {
-          hourListRef.current?.scrollToIndex({
-            index: hourIndex,
-            animated: true,
-          });
-        }
-        if (minuteIndex >= 0) {
-          minuteListRef.current?.scrollToIndex({
-            index: minuteIndex,
-            animated: true,
-          });
-        }
-        if (ampmIndex >= 0) {
-          ampmListRef.current?.scrollToIndex({
-            index: ampmIndex,
-            animated: true,
-          });
-        }
-        if (yearIndex >= 0) {
-          yearListRef.current?.scrollToIndex({
-            index: yearIndex,
-            animated: true,
-          });
-        }
-      }
-    } else {
-      // New todo - just set to now
-      const today = new Date();
-      const currentMinutes = today.getMinutes();
-      const nextFiveMinInterval = Math.ceil(currentMinutes / 5) * 5;
-
-      let adjustedDate = new Date(today);
-      let adjustedMinute = nextFiveMinInterval;
-
-      if (nextFiveMinInterval >= 60) {
-        adjustedDate.setHours(adjustedDate.getHours() + 1);
-        adjustedMinute = 0;
-      }
-
-      updateTempValues({
-        date: adjustedDate,
-        hour: adjustedDate.getHours() % 12 || 12,
-        minute: adjustedMinute,
-        ampm: adjustedDate.getHours() >= 12 ? 1 : 0,
-        year: adjustedDate.getFullYear(),
-      });
-
-      // Scroll to today's values
-      const todayIndex = dates.findIndex(
-        (d) => d.date.toDateString() === adjustedDate.toDateString()
-      );
-      const hourIndex = hours.findIndex(
-        (h) => h.value === (adjustedDate.getHours() % 12 || 12)
-      );
-      const minuteIndex = minutes.findIndex((m) => m.value === adjustedMinute);
-      const ampmIndex = adjustedDate.getHours() >= 12 ? 1 : 0;
-      const yearIndex = years.findIndex(
-        (y) => y.value === adjustedDate.getFullYear()
-      );
-
-      if (todayIndex >= 0) {
-        dateListRef.current?.scrollToIndex({
-          index: todayIndex,
-          animated: true,
-        });
-      }
-      if (hourIndex >= 0) {
-        hourListRef.current?.scrollToIndex({
-          index: hourIndex,
-          animated: true,
-        });
-      }
-      if (minuteIndex >= 0) {
-        minuteListRef.current?.scrollToIndex({
-          index: minuteIndex,
-          animated: true,
-        });
-      }
-      if (ampmIndex >= 0) {
-        ampmListRef.current?.scrollToIndex({
-          index: ampmIndex,
-          animated: true,
-        });
-      }
-      if (yearIndex >= 0) {
-        yearListRef.current?.scrollToIndex({
-          index: yearIndex,
-          animated: true,
-        });
-      }
-
-      setToday();
-    }
-  };
-
-  // Format the button text based on state
-  const getNowButtonText = () => {
-    const hasInitialDate = target?.type === 'todo' && initialDate;
-
-    if (hasInitialDate) {
-      const matchesInitial = doesPickerMatchInitialDate();
-      const matchesNow = doesPickerMatchNow();
-
-      if (matchesNow) {
-        return 'Now';
-      } else if (matchesInitial) {
-        return 'Now';
-      } else {
-        return format(initialDate, 'EEE MMM d, h:mma')
-          .replace('AM', 'am')
-          .replace('PM', 'pm');
-      }
-    } else {
-      return format(new Date(), 'EEE MMM d, h:mma')
-        .replace('AM', 'am')
-        .replace('PM', 'pm');
-    }
   };
 
   const renderDateItem = ({ item, index }: { item: any; index: number }) => {
@@ -914,20 +561,8 @@ export default function DateTimePicker() {
               style={styles.headerBlur}
               tint="extraLight"
             >
-              <AnimatedHeaderButton onPress={handleNowOrReset}>
-                <Text style={styles.nowText}>{getNowButtonText()}</Text>
-              </AnimatedHeaderButton>
-            </BlurView>
-          </View>
-
-          <View style={styles.headerButtonContainer}>
-            <BlurView
-              intensity={80}
-              style={styles.headerBlur}
-              tint="extraLight"
-            >
               <AnimatedHeaderButton onPress={handleConfirm}>
-                <Text style={styles.doneText}>Done</Text>
+                <Text style={styles.saveText}>Save</Text>
               </AnimatedHeaderButton>
             </BlurView>
           </View>
@@ -1109,6 +744,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   doneText: {
+    fontSize: 16,
+    color: '#007AFF',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  saveText: {
     fontSize: 16,
     color: '#007AFF',
     fontWeight: '600',
