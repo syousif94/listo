@@ -214,7 +214,7 @@ export class SpeechRecognitionService {
         error: chatResult.error,
       });
     } catch (error) {
-      console.error('❌ Failed to process transcript:', error);
+      console.log('❌ Failed to process transcript:', error);
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
 
@@ -278,7 +278,7 @@ export class SpeechRecognitionService {
         },
       });
     } catch (error) {
-      console.error('Failed to start speech recognition:', error);
+      console.log('Failed to start speech recognition:', error);
       this.updateState({
         error:
           error instanceof Error
@@ -297,7 +297,7 @@ export class SpeechRecognitionService {
     try {
       await ExpoSpeechRecognitionModule.stop();
     } catch (error) {
-      console.error('Failed to stop speech recognition:', error);
+      console.log('Failed to stop speech recognition:', error);
       this.updateState({
         error:
           error instanceof Error
@@ -322,7 +322,7 @@ export class SpeechRecognitionService {
         volumeLevel: 0,
       });
     } catch (error) {
-      console.error('Failed to abort speech recognition:', error);
+      console.log('Failed to abort speech recognition:', error);
       this.updateState({
         error:
           error instanceof Error

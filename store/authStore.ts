@@ -55,7 +55,7 @@ export const useAuthStore = create<AuthStore>()(
       try {
         await notificationService.syncTokenAfterLogin();
       } catch (error) {
-        console.error('Error syncing device token after login:', error);
+        console.log('Error syncing device token after login:', error);
       }
     },
 
@@ -99,7 +99,7 @@ export const useAuthStore = create<AuthStore>()(
               try {
                 await notificationService.syncTokenAfterLogin();
               } catch (error) {
-                console.error(
+                console.log(
                   'Error syncing device token during initialization:',
                   error
                 );
@@ -113,7 +113,7 @@ export const useAuthStore = create<AuthStore>()(
             }
           } catch (error) {
             // Network error, assume token is still valid for offline use
-            console.error('Error validating token:', error);
+            console.log('Error validating token:', error);
             set((state) => {
               state.token = storedToken;
               state.isAuthenticated = true;
@@ -124,7 +124,7 @@ export const useAuthStore = create<AuthStore>()(
             try {
               await notificationService.syncTokenAfterLogin();
             } catch (syncError) {
-              console.error(
+              console.log(
                 'Error syncing device token in offline mode:',
                 syncError
               );
@@ -136,7 +136,7 @@ export const useAuthStore = create<AuthStore>()(
           });
         }
       } catch (error) {
-        console.error('Error initializing auth:', error);
+        console.log('Error initializing auth:', error);
         set((state) => {
           state.isInitialized = true;
         });
@@ -173,7 +173,7 @@ export const useAuthStore = create<AuthStore>()(
           await get().logout();
         }
       } catch (error) {
-        console.error('Error checking Apple credential state:', error);
+        console.log('Error checking Apple credential state:', error);
         // Don't log out on error, as this could be a network issue or device limitation
       }
     },
@@ -182,7 +182,7 @@ export const useAuthStore = create<AuthStore>()(
       try {
         return await SecureStore.getItemAsync(USER_NAME_KEY);
       } catch (error) {
-        console.error('Error getting stored name:', error);
+        console.log('Error getting stored name:', error);
         return null;
       }
     },
@@ -191,7 +191,7 @@ export const useAuthStore = create<AuthStore>()(
       try {
         await SecureStore.setItemAsync(USER_NAME_KEY, name);
       } catch (error) {
-        console.error('Error storing user name:', error);
+        console.log('Error storing user name:', error);
       }
     },
 

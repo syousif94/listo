@@ -174,7 +174,7 @@ export class NotificationService {
         await this.syncDeviceToken(pushToken);
       }
     } catch (error) {
-      console.error('Error initializing token:', error);
+      console.log('Error initializing token:', error);
     }
   }
 
@@ -258,7 +258,7 @@ export class NotificationService {
         }" at ${dueDate.toLocaleString()}`
       );
     } catch (error) {
-      console.error('Error scheduling notification:', error);
+      console.log('Error scheduling notification:', error);
     }
   }
 
@@ -274,7 +274,7 @@ export class NotificationService {
         console.log(`Cancelled notification for todo ${todoId}`);
       }
     } catch (error) {
-      console.error('Error cancelling notification:', error);
+      console.log('Error cancelling notification:', error);
     }
   }
 
@@ -301,7 +301,7 @@ export class NotificationService {
       this.notificationIds.clear();
       console.log('Cancelled all notifications');
     } catch (error) {
-      console.error('Error cancelling all notifications:', error);
+      console.log('Error cancelling all notifications:', error);
     }
   }
 
@@ -314,7 +314,7 @@ export class NotificationService {
     try {
       return await Notifications.getAllScheduledNotificationsAsync();
     } catch (error) {
-      console.error('Error getting scheduled notifications:', error);
+      console.log('Error getting scheduled notifications:', error);
       return [];
     }
   }
