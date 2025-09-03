@@ -70,6 +70,44 @@ const AnimatedPickerItem = ({
   );
 };
 
+// Animated button component for header
+const AnimatedHeaderButton = ({
+  onPress,
+  children,
+  style,
+}: {
+  onPress: () => void;
+  children: React.ReactNode;
+  style?: any;
+}) => {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.95, { damping: 15, stiffness: 300 });
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 15, stiffness: 300 });
+  };
+
+  return (
+    <Pressable
+      onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      style={[styles.headerButton, style]}
+    >
+      <Animated.View style={[styles.headerButtonContent, animatedStyle]}>
+        {children}
+      </Animated.View>
+    </Pressable>
+  );
+};
+
 export default function DateTimePicker() {
   const {
     isVisible,
@@ -335,8 +373,20 @@ export default function DateTimePicker() {
   };
 
   const handleOverlayPress = () => {
-    // Save the current selection and close
-    handleConfirm();
+    // Dismiss without saving
+    translateY.value = withSpring(PICKER_HEIGHT + 100, {
+      damping: 20,
+      stiffness: 300,
+    });
+    headerTranslateY.value = withSpring(PICKER_HEIGHT + 100, {
+      damping: 20,
+      stiffness: 300,
+    });
+    opacity.value = withTiming(0, { duration: 200 }, (finished) => {
+      if (finished) {
+        runOnJS(hideDatePicker)();
+      }
+    });
   };
 
   // Check if current picker values match the initial date
@@ -709,8 +759,6 @@ export default function DateTimePicker() {
   };
 
   const renderHourItem = ({ item, index }: { item: any; index: number }) => {
-    const isInitialValue = item.value === (initialDate.getHours() % 12 || 12);
-
     const handlePress = () => {
       updateTempValues({ hour: item.value });
       hourListRef.current?.scrollToIndex({ index, animated: true });
@@ -721,18 +769,12 @@ export default function DateTimePicker() {
         item={item}
         index={index}
         onPress={handlePress}
-        isInitialValue={isInitialValue}
+        isInitialValue={false}
       />
     );
   };
 
   const renderMinuteItem = ({ item, index }: { item: any; index: number }) => {
-    // For minutes, we need to check against the rounded initial minute
-    const currentMinutes = initialDate.getMinutes();
-    const nextFiveMinInterval = Math.ceil(currentMinutes / 5) * 5;
-    const adjustedMinute = nextFiveMinInterval >= 60 ? 0 : nextFiveMinInterval;
-    const isInitialValue = item.value === adjustedMinute;
-
     const handlePress = () => {
       updateTempValues({ minute: item.value });
       minuteListRef.current?.scrollToIndex({ index, animated: true });
@@ -743,7 +785,7 @@ export default function DateTimePicker() {
         item={item}
         index={index}
         onPress={handlePress}
-        isInitialValue={isInitialValue}
+        isInitialValue={false}
       />
     );
   };
@@ -756,8 +798,6 @@ export default function DateTimePicker() {
     if (nextFiveMinInterval >= 60) {
       adjustedDate.setHours(adjustedDate.getHours() + 1);
     }
-    const isInitialValue =
-      item.value === (adjustedDate.getHours() >= 12 ? 1 : 0);
 
     const handlePress = () => {
       updateTempValues({ ampm: item.value });
@@ -769,14 +809,12 @@ export default function DateTimePicker() {
         item={item}
         index={index}
         onPress={handlePress}
-        isInitialValue={isInitialValue}
+        isInitialValue={false}
       />
     );
   };
 
   const renderYearItem = ({ item, index }: { item: any; index: number }) => {
-    const isInitialValue = item.value === initialDate.getFullYear();
-
     const handlePress = () => {
       updateTempValues({ year: item.value });
       yearListRef.current?.scrollToIndex({ index, animated: true });
@@ -787,7 +825,7 @@ export default function DateTimePicker() {
         item={item}
         index={index}
         onPress={handlePress}
-        isInitialValue={isInitialValue}
+        isInitialValue={false}
       />
     );
   };
@@ -858,27 +896,39 @@ export default function DateTimePicker() {
         ]}
       >
         <View style={styles.headerRow}>
-          <View style={styles.nowButtonContainer}>
+          <View style={styles.headerButtonContainer}>
             <BlurView
               intensity={80}
               style={styles.headerBlur}
               tint="extraLight"
             >
-              <Pressable onPress={handleNowOrReset} style={styles.nowButton}>
-                <Text style={styles.todayText}>{getNowButtonText()}</Text>
-              </Pressable>
+              <AnimatedHeaderButton onPress={handleClear}>
+                <Text style={styles.clearText}>Clear</Text>
+              </AnimatedHeaderButton>
             </BlurView>
           </View>
 
-          <View style={styles.clearButtonContainer}>
+          <View style={styles.headerButtonContainer}>
             <BlurView
               intensity={80}
               style={styles.headerBlur}
               tint="extraLight"
             >
-              <Pressable onPress={handleClear} style={styles.clearButton}>
-                <Text style={styles.clearText}>Clear</Text>
-              </Pressable>
+              <AnimatedHeaderButton onPress={handleNowOrReset}>
+                <Text style={styles.nowText}>{getNowButtonText()}</Text>
+              </AnimatedHeaderButton>
+            </BlurView>
+          </View>
+
+          <View style={styles.headerButtonContainer}>
+            <BlurView
+              intensity={80}
+              style={styles.headerBlur}
+              tint="extraLight"
+            >
+              <AnimatedHeaderButton onPress={handleConfirm}>
+                <Text style={styles.doneText}>Done</Text>
+              </AnimatedHeaderButton>
             </BlurView>
           </View>
         </View>
@@ -1035,21 +1085,34 @@ const styles = StyleSheet.create({
     gap: 8,
     height: 60,
   },
-  nowButtonContainer: {
+  headerButtonContainer: {
     flex: 1,
   },
-  clearButtonContainer: {
-    width: 80,
-  },
-  nowButton: {
+  headerButton: {
     flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 16,
   },
-  clearButton: {
+  headerButtonContent: {
     flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: 16,
+  },
+  nowText: {
+    fontSize: 16,
+    color: '#333',
+    textAlign: 'center',
+  },
+  clearText: {
+    fontSize: 16,
+    color: '#FF3B30',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  doneText: {
+    fontSize: 16,
+    color: '#007AFF',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   pickerContainer: {
     position: 'absolute',
@@ -1073,16 +1136,6 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     height: 60,
   },
-  headerButton: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
   cancelText: {
     fontSize: 16,
     color: '#666',
@@ -1090,12 +1143,6 @@ const styles = StyleSheet.create({
   todayText: {
     fontSize: 18,
     color: '#333',
-  },
-  clearText: {
-    fontSize: 16,
-    color: '#FF3B30',
-    fontWeight: '600',
-    textAlign: 'right',
   },
   confirmText: {
     fontSize: 16,

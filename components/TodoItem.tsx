@@ -9,6 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useDatePickerStore } from '../store/datePickerStore';
 import { TodoItem as TodoItemType, useTodoStore } from '../store/todoStore';
+import AccessoryButton from './AccessoryButton';
 import KeyboardAccessoryView from './KeyboardAccessoryView';
 
 interface TodoItemProps {
@@ -330,11 +331,12 @@ const TodoItem = forwardRef<TextInput, TodoItemProps>(
         {/* Keyboard Accessory View - Only for this todo item */}
         <KeyboardAccessoryView
           nativeID={ACCESSORY_VIEW_ID}
-          onPress={handleAccessoryPress}
           visible={shouldShowAccessory}
         >
-          <EvilIcons name="calendar" size={24} color="black" />
-          <Text style={styles.accessoryText}>Due Date</Text>
+          <AccessoryButton onPress={handleAccessoryPress}>
+            <EvilIcons name="calendar" size={24} color="black" />
+            <Text style={styles.accessoryText}>Due Date</Text>
+          </AccessoryButton>
         </KeyboardAccessoryView>
       </View>
     );

@@ -61,7 +61,7 @@ interface TodoStore {
   addList: (name: string) => void;
   updateList: (id: string, updates: Partial<TodoList>) => void;
   deleteList: (id: string) => void;
-  addTodoToList: (listId: string, text: string, dueDate?: string) => void;
+  addTodoToList: (listId: string, text: string, dueDate?: string) => string;
   updateTodo: (
     listId: string,
     todoId: string,
@@ -145,13 +145,14 @@ export const useTodoStore = create<TodoStore>()(
           state.lists = state.lists.filter((list) => list.id !== id);
         }),
 
-      addTodoToList: (listId: string, text: string, dueDate?: string) =>
+      addTodoToList: (listId: string, text: string, dueDate?: string) => {
+        const todoId = generateId();
         set((state) => {
           const list = state.lists.find((l) => l.id === listId);
           if (list) {
             const now = new Date().toISOString();
             const newTodo = {
-              id: generateId(),
+              id: todoId,
               text,
               completed: false,
               createdAt: now,
@@ -165,7 +166,9 @@ export const useTodoStore = create<TodoStore>()(
               notificationService.scheduleTodoNotification(newTodo, list.name);
             }
           }
-        }),
+        });
+        return todoId;
+      },
 
       updateTodo: (
         listId: string,

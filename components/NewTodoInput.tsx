@@ -1,8 +1,6 @@
 import { EvilIcons } from '@expo/vector-icons';
-import { format } from 'date-fns';
 import React, {
   forwardRef,
-  useEffect,
   useImperativeHandle,
   useRef,
   useState,
@@ -16,6 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useDatePickerStore } from '../store/datePickerStore';
 import { useTodoStore } from '../store/todoStore';
+import AccessoryButton from './AccessoryButton';
 import KeyboardAccessoryView from './KeyboardAccessoryView';
 
 export interface NewTodoInputRef {
@@ -44,16 +43,7 @@ const NewTodoInput = forwardRef<NewTodoInputRef, NewTodoInputProps>(
     ref
   ) => {
     const addTodoToList = useTodoStore((state) => state.addTodoToList);
-    const {
-      showDatePicker,
-      isVisible: datePickerVisible,
-      target: datePickerTarget,
-      tempSelectedDate,
-      tempSelectedHour,
-      tempSelectedMinute,
-      tempSelectedAmPm,
-      tempSelectedYear,
-    } = useDatePickerStore();
+    const { showDatePicker } = useDatePickerStore();
     const [text, setText] = useState('');
     const [isFocused, setIsFocused] = useState(false);
     const inputRef = useRef<TextInput>(null);
@@ -65,120 +55,6 @@ const NewTodoInput = forwardRef<NewTodoInputRef, NewTodoInputProps>(
     const animatedStyle = useAnimatedStyle(() => ({
       opacity: opacity.value,
     }));
-
-    // Check if this input is currently being edited in the date picker
-    const isBeingEditedInDatePicker =
-      datePickerVisible &&
-      datePickerTarget?.type === 'newTodo' &&
-      datePickerTarget.listId === listId;
-
-    // Construct current date from temp picker values
-    const getCurrentDateFromPicker = () => {
-      const currentDate = new Date(tempSelectedDate);
-      currentDate.setHours(
-        tempSelectedAmPm === 1
-          ? tempSelectedHour === 12
-            ? 12
-            : tempSelectedHour + 12
-          : tempSelectedHour === 12
-          ? 0
-          : tempSelectedHour
-      );
-      currentDate.setMinutes(tempSelectedMinute);
-      currentDate.setFullYear(tempSelectedYear);
-      return currentDate;
-    };
-
-    // Format the temp editing date using the same logic as TodoItem
-    const formatEditingDate = () => {
-      const date = getCurrentDateFromPicker();
-      const now = new Date();
-
-      // Calculate time difference in milliseconds
-      const diffTime = date.getTime() - now.getTime();
-      const diffMinutes = Math.round(diffTime / (1000 * 60));
-      const diffHours = Math.round(diffTime / (1000 * 60 * 60));
-
-      // Reset time to start of day for accurate day comparison
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const dateForComparison = new Date(date);
-      dateForComparison.setHours(0, 0, 0, 0);
-
-      const diffDays = Math.ceil(
-        (dateForComparison.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-      );
-
-      // Format date as before
-      const dateText = format(date, 'MMM dd');
-
-      // Format time
-      const timeText = format(date, 'h:mmaaa')
-        .replace('AM', 'AM')
-        .replace('PM', 'PM');
-
-      let daysText = '';
-
-      // If less than 1 hour away, show minutes
-      if (Math.abs(diffMinutes) < 60) {
-        const absMinutes = Math.abs(diffMinutes);
-        if (absMinutes === 0) {
-          daysText = 'now';
-        } else {
-          daysText = `${absMinutes}m`;
-        }
-      }
-      // If between 1 hour and 1 day, show hours
-      else if (Math.abs(diffHours) < 24) {
-        const absHours = Math.abs(diffHours);
-        daysText = absHours === 1 ? '1hr' : `${absHours}hr`;
-      }
-      // If 1 day or more, use day format
-      else {
-        if (diffDays === 0) {
-          daysText = 'today';
-        } else if (diffDays === 1) {
-          daysText = '1d';
-        } else if (diffDays === -1) {
-          daysText = '1d';
-        } else if (diffDays > 0) {
-          daysText = `${diffDays}d`;
-        } else {
-          daysText = `${Math.abs(diffDays)}d`;
-        }
-      }
-
-      return {
-        dateText: `${dateText} ${timeText}`,
-        daysText,
-        isPastDue: diffTime < 0,
-      };
-    };
-
-    // Animation for date editing indicator
-    const dateEditingOpacity = useSharedValue(0);
-    const dateEditingAnimatedStyle = useAnimatedStyle(() => ({
-      opacity: dateEditingOpacity.value,
-    }));
-
-    // Handle fade animation for date editing indicator
-    useEffect(() => {
-      if (isBeingEditedInDatePicker) {
-        // Only animate if there was no pending date initially
-        if (!pendingDueDate) {
-          dateEditingOpacity.value = withTiming(1, { duration: 200 });
-        } else {
-          dateEditingOpacity.value = 1;
-        }
-      } else {
-        // Only animate if there's no pending date to show
-        if (!pendingDueDate) {
-          dateEditingOpacity.value = withTiming(0, { duration: 200 });
-        } else {
-          dateEditingOpacity.value = 0;
-        }
-      }
-    }, [isBeingEditedInDatePicker, pendingDueDate, dateEditingOpacity]);
 
     const handleFooterTap = () => {
       if (isFocused || disabled) return;
@@ -198,15 +74,18 @@ const NewTodoInput = forwardRef<NewTodoInputRef, NewTodoInputProps>(
       const trimmedText = text.trim();
 
       if (trimmedText !== '') {
+        opacity.value = 0;
         // Create new todo with the text and pending due date
         addTodoToList(listId, trimmedText, pendingDueDate);
         // Clear the input and pending date
         setText('');
         onClearPendingDate?.();
+        // Set opacity to 0 immediately when creating a new todo
+      } else {
+        // Fade back to invisible if no todo was created
+        opacity.value = withTiming(0, { duration: 200 });
       }
 
-      // Fade back to invisible
-      opacity.value = withTiming(0, { duration: 200 });
       setIsFocused(false);
       onFocusChange?.(false, '');
     };
@@ -218,9 +97,25 @@ const NewTodoInput = forwardRef<NewTodoInputRef, NewTodoInputProps>(
       }
     };
 
-    // Date picker handler
+    // Date picker handler - create todo immediately and start editing
     const handleAccessoryPress = () => {
-      showDatePicker({ type: 'newTodo', listId }, pendingDueDate);
+      const trimmedText = text.trim();
+      if (trimmedText === '') return;
+
+      // Create new todo immediately and get its ID
+      const todoId = addTodoToList(listId, trimmedText);
+
+      // Clear the input
+      setText('');
+
+      // Start editing the new todo in date picker
+      showDatePicker({ type: 'todo', id: todoId, listId });
+
+      // Blur the input and fade out
+      inputRef.current?.blur();
+      opacity.value = withTiming(0, { duration: 200 });
+      setIsFocused(false);
+      onFocusChange?.(false, '');
     };
 
     // Expose methods to parent component
@@ -268,24 +163,6 @@ const NewTodoInput = forwardRef<NewTodoInputRef, NewTodoInputProps>(
           <View style={styles.checkbox} />
         </Animated.View>
 
-        {/* Date editing indicator for new todo */}
-        {isBeingEditedInDatePicker && (
-          <Animated.View style={[styles.dueDateRow, dateEditingAnimatedStyle]}>
-            <Text style={[styles.dueDateText, styles.editingDateText]}>
-              {formatEditingDate().dateText}
-            </Text>
-            <Text
-              style={[
-                styles.daysAwayText,
-                styles.editingDateText,
-                formatEditingDate().isPastDue && styles.pastDueText,
-              ]}
-            >
-              {formatEditingDate().daysText}
-            </Text>
-          </Animated.View>
-        )}
-
         {showEmptyState && !isFocused ? (
           <Animated.View style={styles.emptyContainer} pointerEvents={'none'}>
             <Text style={styles.emptyTitleText}>Empty List</Text>
@@ -299,11 +176,12 @@ const NewTodoInput = forwardRef<NewTodoInputRef, NewTodoInputProps>(
         {/* Keyboard Accessory View - Only for new todo input */}
         <KeyboardAccessoryView
           nativeID={ACCESSORY_VIEW_ID}
-          onPress={handleAccessoryPress}
           visible={shouldShowAccessory}
         >
-          <EvilIcons name="calendar" size={24} color="black" />
-          <Text style={styles.accessoryText}>Add Due Date</Text>
+          <AccessoryButton onPress={handleAccessoryPress}>
+            <EvilIcons name="calendar" size={24} color="black" />
+            <Text style={styles.accessoryText}>Due Date</Text>
+          </AccessoryButton>
         </KeyboardAccessoryView>
       </Pressable>
     );
@@ -322,9 +200,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     paddingHorizontal: 20,
     justifyContent: 'flex-start',
-  },
-  editingDateText: {
-    color: '#007AFF', // Blue color for editing state
   },
   disabledContainer: {
     opacity: 0.5,
@@ -381,23 +256,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 4,
     marginRight: 4,
-  },
-  dueDateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-    paddingHorizontal: 20,
-    gap: 8,
-  },
-  dueDateText: {
-    fontSize: 8,
-    color: 'rgba(0, 0, 0, 0.5)',
-  },
-  daysAwayText: {
-    fontSize: 8,
-    color: 'rgba(0, 0, 0, 0.5)',
-  },
-  pastDueText: {
-    color: '#FF3B30',
   },
 });
