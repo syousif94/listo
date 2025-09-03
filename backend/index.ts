@@ -263,6 +263,8 @@ app.post('/chat', optionalAuthMiddleware, async (c) => {
       </Example>
 
       The current user's time and date is ${userTime}.
+
+      NEVER RESPOND WITH A CHAT MESSAGE FULL OF JSON LIKE THE FOLLOWING:  "{\"name\": \"createListWithTasks\", \"parameters\": {\"title\": \"Groceries\", \"tasks\": []}, \"id\": \"createListWithTasks:4\"}"
       `,
     };
 
@@ -464,7 +466,33 @@ app.post('/chat', optionalAuthMiddleware, async (c) => {
           max_completion_tokens: 4096,
         });
 
-        // If we get here, the call was successful
+        // Check if response contains JSON content instead of tool calls
+        const message = response.choices[0]?.message;
+        if (message?.content) {
+          try {
+            JSON.parse(message.content);
+            // If we can parse the content as JSON, this is likely an invalid response
+            console.log(
+              `Response contains JSON content instead of tool calls (attempt ${attempt}/${maxRetries}):`,
+              message.content
+            );
+
+            // If this is the last attempt, we'll use this response anyway
+            if (attempt === maxRetries) {
+              console.log(
+                'Max retries reached, using response with JSON content'
+              );
+              break;
+            }
+
+            // Continue to next attempt
+            continue;
+          } catch {
+            // Content is not valid JSON, this is fine
+          }
+        }
+
+        // If we get here, the call was successful and doesn't contain unwanted JSON
         break;
       } catch (error) {
         console.error(
