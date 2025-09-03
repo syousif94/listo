@@ -390,14 +390,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   dueDateText: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
+    fontSize: 8,
+    color: 'rgba(0, 0, 0, 0.5)',
   },
   daysAwayText: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
+    fontSize: 8,
+    color: 'rgba(0, 0, 0, 0.5)',
   },
   pastDueText: {
     color: '#FF3B30',
