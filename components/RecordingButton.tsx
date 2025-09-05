@@ -10,11 +10,13 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { eventEmitter } from '../services/eventEmitter';
 import {
   speechRecognitionService,
   type SpeechRecognitionResult,
   type SpeechRecognitionState,
 } from '../services/speechRecognitionService';
+import { RecordingState, useRecordingStore } from '../store/recordingStore';
 import AudioMeter from './AudioMeter';
 
 // Individual processing bar component
@@ -123,12 +125,6 @@ const StaticMeter: React.FC<{ maxHeight: number; color: string }> = ({
   );
 };
 
-enum RecordingState {
-  IDLE = 'idle',
-  LISTENING = 'listening',
-  PROCESSING = 'processing',
-}
-
 interface RecordingButtonProps {
   onTranscriptionComplete?: (
     transcript: string,
@@ -146,11 +142,9 @@ export default function RecordingButton({
   onProcessingComplete,
   processingComplete,
 }: RecordingButtonProps) {
-  const [recordingState, setRecordingState] = useState<RecordingState>(
-    RecordingState.IDLE
-  );
+  const { recordingState, setRecordingState, setIsRecording } = useRecordingStore();
   const [volumeLevel, setVolumeLevel] = useState<number>(0);
-  const [_currentTranscript, setCurrentTranscript] = useState<string>('');
+  const [currentTranscript, setCurrentTranscript] = useState<string>('');
   // Add sliding window for volume samples (like the original implementation)
   const [volumeSamples, setVolumeSamples] = useState<number[]>(
     new Array(40).fill(-25)
@@ -200,6 +194,7 @@ export default function RecordingButton({
 
   const handleProcessingComplete = useCallback(() => {
     setRecordingState(RecordingState.IDLE);
+    setIsRecording(false);
     setVolumeLevel(0);
     setVolumeSamples(new Array(40).fill(-25)); // Reset volume samples
     // Animate back to idle state size (100px)
@@ -215,12 +210,17 @@ export default function RecordingButton({
     processingViewOpacity.value = withTiming(0, { duration: 200 });
     recordViewOpacity.value = withTiming(1, { duration: 200 });
     onProcessingComplete?.();
+
+    // Scroll back to todos page after recording submission
+    eventEmitter.emit('scrollToPage', 0);
   }, [
     onProcessingComplete,
     width,
     height,
     processingViewOpacity,
     recordViewOpacity,
+    setRecordingState,
+    setIsRecording,
   ]);
 
   // Handle external processing completion
@@ -238,8 +238,10 @@ export default function RecordingButton({
 
         if (state.isListening) {
           setRecordingState(RecordingState.LISTENING);
+          setIsRecording(true);
         } else if (state.isProcessing) {
           setRecordingState(RecordingState.PROCESSING);
+          setIsRecording(false);
           // Animate to processing state
           width.value = withSpring(54, {
             damping: 25,
@@ -282,6 +284,7 @@ export default function RecordingButton({
         // Always reset to idle state when processing is complete
         // regardless of success or failure
         setRecordingState(RecordingState.IDLE);
+        setIsRecording(false);
         setVolumeLevel(0);
         setVolumeSamples(new Array(40).fill(-25));
         setCurrentTranscript('');
@@ -323,6 +326,8 @@ export default function RecordingButton({
     recordViewOpacity,
     listeningViewOpacity,
     processingViewOpacity,
+    setRecordingState,
+    setIsRecording,
   ]);
 
   const onStartListening = async () => {
@@ -332,6 +337,7 @@ export default function RecordingButton({
 
     // Immediately switch to listening state and show listening view
     setRecordingState(RecordingState.LISTENING);
+    setIsRecording(true);
     // Animate to expanded state with fade transitions
     width.value = withSpring(window.width - 64, {
       damping: 15,
@@ -355,6 +361,7 @@ export default function RecordingButton({
       console.log('Failed to start speech recognition:', error);
       // Revert to idle state if recognition fails
       setRecordingState(RecordingState.IDLE);
+      setIsRecording(false);
       width.value = withSpring(100, {
         damping: 15,
         stiffness: 150,
@@ -381,6 +388,7 @@ export default function RecordingButton({
     try {
       await speechRecognitionService.abortListening();
       setRecordingState(RecordingState.IDLE);
+      setIsRecording(false);
       setVolumeLevel(0);
       setVolumeSamples(new Array(40).fill(-25)); // Reset volume samples
       setCurrentTranscript('');

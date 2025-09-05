@@ -372,6 +372,10 @@ app.post('/chat', optionalAuthMiddleware, async (c) => {
 
       6. You can reorder lists and todos when the user requests it. Use reorderLists with a comprehensive array of all list IDs in the desired order, or reorderTodosInList with a list ID and comprehensive array of all todo IDs in that list in the desired order.
 
+      7. If a user asks you to remind them about something without mentioning a specific list, put it in a list called "Reminders".
+
+      8. If a user tells you to add a book or movie to their list, and that book or movie is a well known title, you should add it to a list called "Reading List" or "Watch List" respectively. If the user specifies a different list name, use that instead.
+
       <Example>
 
       <Transcript>Create a new list called century, spelled SENTRY and add Create a restarting cold war, spelled COLDBORE script. Also, a restarting ui and backend scripts.</Transcript>

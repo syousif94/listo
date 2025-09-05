@@ -34,12 +34,13 @@
         "expo-updates": "~0.28.17",
         "expo-web-browser": "~14.2.0",
         "groq-sdk": "^0.29.0",
-        "react-native-date-picker": "https://github.com/burakharun/react-native-date-picker.git#fix/new-architecture-turbo-modules",
         "immer": "^10.1.1",
+        "mitt": "^3.0.1",
         "react": "19.0.0",
         "react-dom": "19.0.0",
         "react-native": "0.79.5",
         "react-native-cloud-storage": "^2.3.0",
+        "react-native-date-picker": "https://github.com/burakharun/react-native-date-picker.git#fix/new-architecture-turbo-modules",
         "react-native-gesture-handler": "~2.24.0",
         "react-native-ios-context-menu": "itsramiel/react-native-ios-context-menu#fix/fix-ios-codegen-config",
         "react-native-ios-utilities": "^5.1.8",
@@ -1288,6 +1289,8 @@
     "minipass": ["minipass@7.1.2", "", {}, "sha512-qOOzS1cBTWYF4BH8fVePDBOO9iptMnGUEZwNc/cMWnTV2nVLZ7VoNWEPHkYczZA0pdoA7dl6e7FL659nX9S2aw=="],
 
     "minizlib": ["minizlib@3.0.2", "", { "dependencies": { "minipass": "^7.1.2" } }, "sha512-oG62iEk+CYt5Xj2YqI5Xi9xWUeZhDI8jjQmC5oThVH5JGCTgIjr7ciJDzC7MBzYd//WvR1OTmP5Q38Q8ShQtVA=="],
+
+    "mitt": ["mitt@3.0.1", "", {}, "sha512-vKivATfr97l2/QBCYAkXYDbrIWPM2IIKEl7YPhjCvKlG3kE2gm+uBo6nEXK3M5/Ffh/FLpKExzOQ3JJoJGFKBw=="],
 
     "mkdirp": ["mkdirp@3.0.1", "", { "bin": { "mkdirp": "dist/cjs/src/bin.js" } }, "sha512-+NsyUUAZDmo6YVHzL/stxSu3t9YS1iljliy3BSDrXJ/dkn1KYdmtZODGGjLcc9XLgVVpH4KshHB8XmZgMhaBXg=="],
 

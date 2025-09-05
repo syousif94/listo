@@ -17,6 +17,12 @@ export interface SpeechRecognitionResult {
   error?: string;
 }
 
+export interface PermissionStatus {
+  granted: boolean;
+  canAskAgain: boolean;
+  status: string;
+}
+
 export class SpeechRecognitionService {
   private static instance: SpeechRecognitionService;
   private listeners: Map<string, any> = new Map();
@@ -241,6 +247,42 @@ export class SpeechRecognitionService {
     onComplete?: (result: SpeechRecognitionResult) => void;
   }) {
     this.callbacks = callbacks;
+  }
+
+  async checkPermissions(): Promise<PermissionStatus> {
+    try {
+      const permissionResponse = await ExpoSpeechRecognitionModule.getPermissionsAsync();
+      return {
+        granted: permissionResponse.status === 'granted',
+        canAskAgain: permissionResponse.canAskAgain || false,
+        status: permissionResponse.status || 'unknown',
+      };
+    } catch (error) {
+      console.log('Error checking speech recognition permissions:', error);
+      return {
+        granted: false,
+        canAskAgain: true,
+        status: 'unknown',
+      };
+    }
+  }
+
+  async requestPermissions(): Promise<PermissionStatus> {
+    try {
+      const permissionResponse = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      return {
+        granted: permissionResponse.status === 'granted',
+        canAskAgain: permissionResponse.canAskAgain || false,
+        status: permissionResponse.status || 'unknown',
+      };
+    } catch (error) {
+      console.log('Error requesting speech recognition permissions:', error);
+      return {
+        granted: false,
+        canAskAgain: true,
+        status: 'error',
+      };
+    }
   }
 
   async startListening(options?: {
