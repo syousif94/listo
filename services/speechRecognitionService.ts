@@ -251,7 +251,8 @@ export class SpeechRecognitionService {
 
   async checkPermissions(): Promise<PermissionStatus> {
     try {
-      const permissionResponse = await ExpoSpeechRecognitionModule.getPermissionsAsync();
+      const permissionResponse =
+        await ExpoSpeechRecognitionModule.getPermissionsAsync();
       return {
         granted: permissionResponse.status === 'granted',
         canAskAgain: permissionResponse.canAskAgain || false,
@@ -269,7 +270,8 @@ export class SpeechRecognitionService {
 
   async requestPermissions(): Promise<PermissionStatus> {
     try {
-      const permissionResponse = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      const permissionResponse =
+        await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       return {
         granted: permissionResponse.status === 'granted',
         canAskAgain: permissionResponse.canAskAgain || false,

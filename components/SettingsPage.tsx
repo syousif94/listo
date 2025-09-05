@@ -309,7 +309,10 @@ export default function SettingsPage() {
         {/* Delete Account Section - Only show when authenticated */}
         {user && (
           <View style={styles.deleteSection}>
-            <Pressable style={styles.deleteButton} onPress={handleDeleteAccount}>
+            <Pressable
+              style={styles.deleteButton}
+              onPress={handleDeleteAccount}
+            >
               <Text style={styles.deleteButtonText}>Delete Account</Text>
             </Pressable>
           </View>

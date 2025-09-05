@@ -142,7 +142,8 @@ export default function RecordingButton({
   onProcessingComplete,
   processingComplete,
 }: RecordingButtonProps) {
-  const { recordingState, setRecordingState, setIsRecording } = useRecordingStore();
+  const { recordingState, setRecordingState, setIsRecording } =
+    useRecordingStore();
   const [volumeLevel, setVolumeLevel] = useState<number>(0);
   const [currentTranscript, setCurrentTranscript] = useState<string>('');
   // Add sliding window for volume samples (like the original implementation)
