@@ -602,7 +602,7 @@ app.post('/chat', optionalAuthMiddleware, async (c) => {
         response = await groq.chat.completions.create({
           messages,
           tools: toolsConfig,
-          model: 'moonshotai/kimi-k2-instruct',
+          model: 'moonshotai/kimi-k2-instruct-0905',
           temperature: 0,
           tool_choice: 'auto',
           max_completion_tokens: 4096,
