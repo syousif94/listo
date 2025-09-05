@@ -215,6 +215,10 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
             </Animated.Text>
 
             <CyclingQuotes quotes={quotes} />
+
+            <Animated.Text style={styles.emptyText}>
+              Swipe left for settings.
+            </Animated.Text>
           </View>
         )}
         contentContainerStyle={{
