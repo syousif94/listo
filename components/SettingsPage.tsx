@@ -17,6 +17,9 @@ import { useColorScheme } from '../hooks/useColorScheme';
 import { notificationService } from '../services/notificationService';
 import { useAuthStore } from '../store/authStore';
 import { useTodoStore } from '../store/todoStore';
+import CardColorPicker from './CardColorPicker';
+import ColorSchemeSelector from './ColorSchemeSelector';
+import RecordingButtonColorPicker from './RecordingButtonColorPicker';
 
 interface NotificationStatus {
   status: string;
@@ -163,7 +166,13 @@ export default function SettingsPage() {
             App Info
           </Text>
           <View
-            style={[styles.infoCard, { backgroundColor: colors.background }]}
+            style={[
+              styles.infoCard,
+              {
+                backgroundColor: colors.background,
+                borderColor: colors.borderColor,
+              },
+            ]}
           >
             <View style={styles.infoRow}>
               <Text style={[styles.infoLabel, { color: colors.text }]}>
@@ -193,7 +202,13 @@ export default function SettingsPage() {
               AI Usage
             </Text>
             <View
-              style={[styles.infoCard, { backgroundColor: colors.background }]}
+              style={[
+                styles.infoCard,
+                {
+                  backgroundColor: colors.background,
+                  borderColor: colors.borderColor,
+                },
+              ]}
             >
               <View style={styles.infoRow}>
                 <Text style={[styles.infoLabel, { color: colors.text }]}>
@@ -218,8 +233,17 @@ export default function SettingsPage() {
         {/* Permissions Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Permissions
+            Preferences
           </Text>
+
+          {/* Theme Selector */}
+          <ColorSchemeSelector />
+
+          {/* Card Color Picker */}
+          <CardColorPicker />
+
+          {/* Recording Button Color Picker */}
+          <RecordingButtonColorPicker />
 
           {/* Notifications Permission */}
           <Pressable
@@ -245,7 +269,7 @@ export default function SettingsPage() {
                 color={notificationStatus.granted ? '#4CAF50' : '#FF9800'}
               />
               <View style={styles.buttonTextContainer}>
-                <Text style={[styles.buttonTitle, { color: colors.text }]}>
+                <Text style={[styles.buttonTitle]}>
                   {getNotificationButtonText()}
                 </Text>
                 <Text style={[styles.buttonSubtitle, { color: colors.icon }]}>
@@ -266,7 +290,10 @@ export default function SettingsPage() {
           <Pressable
             style={[
               styles.settingsButton,
-              { backgroundColor: colors.background, borderColor: colors.icon },
+              {
+                backgroundColor: colors.background,
+                borderColor: colors.borderColor,
+              },
             ]}
             onPress={handleViewSource}
           >
@@ -287,7 +314,10 @@ export default function SettingsPage() {
           <Pressable
             style={[
               styles.settingsButton,
-              { backgroundColor: colors.background, borderColor: colors.icon },
+              {
+                backgroundColor: colors.background,
+                borderColor: colors.borderColor,
+              },
             ]}
             onPress={handleReportIssues}
           >
@@ -341,7 +371,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
   },
   infoRow: {
     flexDirection: 'row',

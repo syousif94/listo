@@ -1,3 +1,4 @@
+import { useThemeColor } from '@/hooks/useThemeColor';
 import { MasonryFlashList } from '@shopify/flash-list';
 import { BlurView } from 'expo-blur';
 import React, { useEffect, useState } from 'react';
@@ -21,6 +22,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useColorScheme } from '../hooks/useColorScheme';
 import { TodoList, useTodoStore } from '../store/todoStore';
 import ExpandedTodoCard from './ExpandedTodoCard';
 import TodoListCard from './TodoListCard';
@@ -179,6 +181,11 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
     );
   };
 
+  const textColor = useThemeColor({}, 'text');
+
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
   return (
     <View style={styles.container}>
       {/* Absolutely positioned floating header */}
@@ -204,7 +211,7 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
               }}
             />
 
-            <Animated.Text style={styles.titleText}>
+            <Animated.Text style={[styles.titleText, { color: textColor }]}>
               Welcome to Listo!
             </Animated.Text>
 
@@ -238,8 +245,14 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
           ]}
         >
           <Animated.View style={[styles.floatingHeader, headerBorderStyle]}>
-            <BlurView intensity={80} style={styles.blurContainer} tint="light">
-              <Text style={styles.headerDateText}>{getCurrentDate()}</Text>
+            <BlurView
+              intensity={80}
+              style={styles.blurContainer}
+              tint={isDark ? 'dark' : 'light'}
+            >
+              <Text style={[styles.headerDateText, { color: textColor }]}>
+                {getCurrentDate()}
+              </Text>
             </BlurView>
           </Animated.View>
         </Animated.View>
@@ -265,6 +278,7 @@ export default function TodoGrid({ onEditList }: TodoGridProps) {
 }
 
 function CyclingQuotes({ quotes }: { quotes: string[] }) {
+  const colorScheme = useColorScheme();
   const [currentQuoteIndex, setCurrentQuoteIndex] = useState(0);
   const opacity = useSharedValue(1);
   const translateY = useSharedValue(0);
@@ -319,8 +333,24 @@ function CyclingQuotes({ quotes }: { quotes: string[] }) {
 
   return (
     <View style={styles.quoteContainer}>
-      <Animated.View style={[styles.quotesView, animatedStyle]}>
-        <Animated.Text style={styles.quotesText}>
+      <Animated.View
+        style={[
+          styles.quotesView,
+          animatedStyle,
+          {
+            backgroundColor:
+              colorScheme === 'dark'
+                ? 'rgba(255,255,255,0.1)'
+                : 'rgba(0,0,0,0.05)',
+          },
+        ]}
+      >
+        <Animated.Text
+          style={[
+            styles.quotesText,
+            { color: colorScheme === 'dark' ? '#eee' : '#000' },
+          ]}
+        >
           {`"${quotes[currentQuoteIndex]}"`}
         </Animated.Text>
       </Animated.View>
@@ -402,6 +432,5 @@ const styles = StyleSheet.create({
   quotesText: {
     fontSize: 18,
     lineHeight: 18 * 1.6,
-    textAlign: 'right',
   },
 });

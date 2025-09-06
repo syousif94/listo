@@ -10,6 +10,9 @@ import {
   View,
 } from 'react-native';
 import Animated, {
+  Extrapolation,
+  interpolate,
+  interpolateColor,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
@@ -17,6 +20,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useColorScheme } from '../hooks/useColorScheme';
+import { useThemeColor } from '../hooks/useThemeColor';
 import { useDatePickerStore } from '../store/datePickerStore';
 import { useTodoStore } from '../store/todoStore';
 
@@ -30,11 +35,13 @@ const AnimatedPickerItem = ({
   index,
   onPress,
   isInitialValue,
+  textColor,
 }: {
   item: any;
   index: number;
   onPress: () => void;
   isInitialValue: boolean;
+  textColor: string;
 }) => {
   const opacity = useSharedValue(1);
 
@@ -60,6 +67,7 @@ const AnimatedPickerItem = ({
       <Animated.Text
         style={[
           styles.pickerText,
+          { color: textColor },
           isInitialValue && styles.pickerTextBold,
           animatedStyle,
         ]}
@@ -124,9 +132,58 @@ export default function DateTimePicker() {
   } = useDatePickerStore();
   const updateTodo = useTodoStore((state) => state.updateTodo);
   const insets = useSafeAreaInsets();
-  const translateY = useSharedValue(PICKER_HEIGHT + 100);
-  const headerTranslateY = useSharedValue(PICKER_HEIGHT + 100);
+
+  // Theme colors
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const textColor = useThemeColor({}, 'text');
+  const backgroundColor = useThemeColor({}, 'background');
+  const primaryColor = useThemeColor({}, 'primary');
+  const destructiveColor = useThemeColor({}, 'destructive');
+
+  const translateY = useSharedValue(PICKER_HEIGHT + 160);
+  const headerTranslateY = useSharedValue(PICKER_HEIGHT + 160);
   const opacity = useSharedValue(0);
+
+  // Header animated styles similar to TodoGrid
+  const headerContainerStyle = useAnimatedStyle(() => {
+    const scale = interpolate(
+      opacity.value,
+      [0, 1],
+      [0.8, 1],
+      Extrapolation.CLAMP
+    );
+
+    return {
+      transform: [{ scale }],
+    };
+  });
+
+  const headerBorderStyle = useAnimatedStyle(() => ({
+    borderColor: interpolateColor(
+      opacity.value,
+      [0, 1],
+      ['rgba(0, 0, 0, 0.0)', 'rgba(0, 0, 0, 0.1)']
+    ),
+    shadowColor: interpolateColor(
+      opacity.value,
+      [0, 1],
+      ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 1)']
+    ),
+  }));
+
+  // Selection indicator style for dark mode
+  const selectionIndicatorStyle = {
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+    backgroundColor: isDark
+      ? 'rgba(255, 255, 255, 0.05)'
+      : 'rgba(0, 0, 0, 0.05)',
+  };
+
+  // Divider style for dark mode
+  const dividerStyle = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+  };
 
   // Refs for scroll positions
   const dateListRef = useRef<FlatList>(null);
@@ -261,11 +318,11 @@ export default function DateTimePicker() {
         });
       }
     } else {
-      translateY.value = withSpring(PICKER_HEIGHT + 100, {
+      translateY.value = withSpring(PICKER_HEIGHT + 160, {
         damping: 20,
         stiffness: 300,
       });
-      headerTranslateY.value = withSpring(PICKER_HEIGHT + 100, {
+      headerTranslateY.value = withSpring(PICKER_HEIGHT + 160, {
         damping: 20,
         stiffness: 300,
       });
@@ -323,11 +380,11 @@ export default function DateTimePicker() {
       };
 
       // Animation before confirming
-      translateY.value = withSpring(PICKER_HEIGHT + 100, {
+      translateY.value = withSpring(PICKER_HEIGHT + 160, {
         damping: 20,
         stiffness: 300,
       });
-      headerTranslateY.value = withSpring(PICKER_HEIGHT + 100, {
+      headerTranslateY.value = withSpring(PICKER_HEIGHT + 160, {
         damping: 20,
         stiffness: 300,
       });
@@ -350,11 +407,11 @@ export default function DateTimePicker() {
       }
 
       // Animation before clearing
-      translateY.value = withSpring(PICKER_HEIGHT + 100, {
+      translateY.value = withSpring(PICKER_HEIGHT + 160, {
         damping: 20,
         stiffness: 300,
       });
-      headerTranslateY.value = withSpring(PICKER_HEIGHT + 100, {
+      headerTranslateY.value = withSpring(PICKER_HEIGHT + 160, {
         damping: 20,
         stiffness: 300,
       });
@@ -371,11 +428,11 @@ export default function DateTimePicker() {
 
   const handleOverlayPress = () => {
     // Dismiss without saving
-    translateY.value = withSpring(PICKER_HEIGHT + 100, {
+    translateY.value = withSpring(PICKER_HEIGHT + 160, {
       damping: 20,
       stiffness: 300,
     });
-    headerTranslateY.value = withSpring(PICKER_HEIGHT + 100, {
+    headerTranslateY.value = withSpring(PICKER_HEIGHT + 160, {
       damping: 20,
       stiffness: 300,
     });
@@ -401,6 +458,7 @@ export default function DateTimePicker() {
         index={index}
         onPress={handlePress}
         isInitialValue={isInitialValue}
+        textColor={textColor}
       />
     );
   };
@@ -417,6 +475,7 @@ export default function DateTimePicker() {
         index={index}
         onPress={handlePress}
         isInitialValue={false}
+        textColor={textColor}
       />
     );
   };
@@ -433,6 +492,7 @@ export default function DateTimePicker() {
         index={index}
         onPress={handlePress}
         isInitialValue={false}
+        textColor={textColor}
       />
     );
   };
@@ -457,6 +517,7 @@ export default function DateTimePicker() {
         index={index}
         onPress={handlePress}
         isInitialValue={false}
+        textColor={textColor}
       />
     );
   };
@@ -473,6 +534,7 @@ export default function DateTimePicker() {
         index={index}
         onPress={handlePress}
         isInitialValue={false}
+        textColor={textColor}
       />
     );
   };
@@ -539,6 +601,7 @@ export default function DateTimePicker() {
         style={[
           styles.headerContainer,
           headerStyle,
+          headerContainerStyle,
           { bottom: insets.bottom + PICKER_HEIGHT + 8 },
         ]}
       >
@@ -547,10 +610,12 @@ export default function DateTimePicker() {
             <BlurView
               intensity={80}
               style={styles.headerBlur}
-              tint="extraLight"
+              tint={isDark ? 'dark' : 'extraLight'}
             >
               <AnimatedHeaderButton onPress={handleClear}>
-                <Text style={styles.clearText}>Clear</Text>
+                <Text style={[styles.clearText, { color: destructiveColor }]}>
+                  Clear
+                </Text>
               </AnimatedHeaderButton>
             </BlurView>
           </View>
@@ -559,10 +624,12 @@ export default function DateTimePicker() {
             <BlurView
               intensity={80}
               style={styles.headerBlur}
-              tint="extraLight"
+              tint={isDark ? 'dark' : 'extraLight'}
             >
               <AnimatedHeaderButton onPress={handleConfirm}>
-                <Text style={styles.saveText}>Save</Text>
+                <Text style={[styles.saveText, { color: primaryColor }]}>
+                  Save
+                </Text>
               </AnimatedHeaderButton>
             </BlurView>
           </View>
@@ -573,7 +640,11 @@ export default function DateTimePicker() {
       <Animated.View
         style={[styles.pickerContainer, pickerStyle, { bottom: insets.bottom }]}
       >
-        <BlurView intensity={80} style={styles.pickerBlur} tint="extraLight">
+        <BlurView
+          intensity={80}
+          style={[styles.pickerBlur, headerBorderStyle]}
+          tint={isDark ? 'dark' : 'extraLight'}
+        >
           {/* Picker Lists */}
           <View style={styles.pickersContainer}>
             {/* Date */}
@@ -595,7 +666,7 @@ export default function DateTimePicker() {
               />
             </View>
 
-            <View style={styles.divider} />
+            <View style={[styles.divider, dividerStyle]} />
 
             {/* Hour */}
             <View style={styles.pickerColumn}>
@@ -616,7 +687,7 @@ export default function DateTimePicker() {
               />
             </View>
 
-            <View style={styles.divider} />
+            <View style={[styles.divider, dividerStyle]} />
 
             {/* Minute */}
             <View style={styles.pickerColumn}>
@@ -637,7 +708,7 @@ export default function DateTimePicker() {
               />
             </View>
 
-            <View style={styles.divider} />
+            <View style={[styles.divider, dividerStyle]} />
 
             {/* AM/PM */}
             <View style={styles.pickerColumn}>
@@ -658,7 +729,7 @@ export default function DateTimePicker() {
               />
             </View>
 
-            <View style={styles.divider} />
+            <View style={[styles.divider, dividerStyle]} />
 
             {/* Year */}
             <View style={styles.pickerColumn}>
@@ -681,7 +752,10 @@ export default function DateTimePicker() {
           </View>
 
           {/* Selection Indicator */}
-          <View style={styles.selectionIndicator} pointerEvents="none" />
+          <View
+            style={[styles.selectionIndicator, selectionIndicatorStyle]}
+            pointerEvents="none"
+          />
         </BlurView>
       </Animated.View>
     </>
@@ -734,24 +808,20 @@ const styles = StyleSheet.create({
   },
   nowText: {
     fontSize: 16,
-    color: '#333',
     textAlign: 'center',
   },
   clearText: {
     fontSize: 16,
-    color: '#FF3B30',
     fontWeight: '600',
     textAlign: 'center',
   },
   doneText: {
     fontSize: 16,
-    color: '#007AFF',
     fontWeight: '600',
     textAlign: 'center',
   },
   saveText: {
     fontSize: 16,
-    color: '#007AFF',
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -814,7 +884,6 @@ const styles = StyleSheet.create({
   },
   pickerText: {
     fontSize: 18,
-    color: '#333',
   },
   pickerTextBold: {
     fontWeight: '600',
@@ -822,7 +891,6 @@ const styles = StyleSheet.create({
   divider: {
     width: 1 / PixelRatio.get(),
     height: PICKER_HEIGHT,
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
   },
   selectionIndicator: {
     position: 'absolute',
@@ -832,7 +900,5 @@ const styles = StyleSheet.create({
     height: ROW_HEIGHT,
     borderTopWidth: 1 / PixelRatio.get(),
     borderBottomWidth: 1 / PixelRatio.get(),
-    borderColor: 'rgba(0, 0, 0, 0.2)',
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
   },
 });

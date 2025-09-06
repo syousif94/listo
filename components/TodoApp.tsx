@@ -1,3 +1,4 @@
+import { useThemeColor } from '@/hooks/useThemeColor';
 import React, { useEffect, useRef } from 'react';
 import { AppState, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, {
@@ -149,8 +150,17 @@ export default function TodoApp() {
     pointerEvents: recordingButtonOpacity.value > 0 ? 'auto' : 'none',
   }));
 
+  const backgroundColor = useThemeColor({}, 'background');
+
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor,
+        },
+      ]}
+    >
       <Animated.ScrollView
         ref={scrollViewRef}
         horizontal
@@ -191,7 +201,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
   },
   viewContainer: {
     flex: 1,

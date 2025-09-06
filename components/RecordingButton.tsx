@@ -16,6 +16,10 @@ import {
   type SpeechRecognitionResult,
   type SpeechRecognitionState,
 } from '../services/speechRecognitionService';
+import {
+  recordingButtonColors,
+  useColorSchemeStore,
+} from '../store/colorSchemeStore';
 import { RecordingState, useRecordingStore } from '../store/recordingStore';
 import AudioMeter from './AudioMeter';
 
@@ -144,6 +148,7 @@ export default function RecordingButton({
 }: RecordingButtonProps) {
   const { recordingState, setRecordingState, setIsRecording } =
     useRecordingStore();
+  const { recordingButtonColor } = useColorSchemeStore();
   const [volumeLevel, setVolumeLevel] = useState<number>(0);
   const [currentTranscript, setCurrentTranscript] = useState<string>('');
   // Add sliding window for volume samples (like the original implementation)
@@ -573,7 +578,7 @@ export default function RecordingButton({
         <Animated.View
           style={[
             {
-              backgroundColor: '#00AA00',
+              backgroundColor: recordingButtonColors[recordingButtonColor],
               justifyContent: 'center',
               alignItems: 'center',
               overflow: 'hidden',

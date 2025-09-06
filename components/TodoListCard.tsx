@@ -15,7 +15,8 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { TodoList, useTodoStore } from '../store/todoStore';
+import { cardColors, useColorSchemeStore } from '../store/colorSchemeStore';
+import { useTodoStore } from '../store/todoStore';
 
 interface TodoListCardProps {
   list: TodoList;
@@ -61,6 +62,7 @@ export default function TodoListCard({
   const opacity = useSharedValue(1);
   const toggleTodo = useTodoStore((state) => state.toggleTodo);
   const deleteList = useTodoStore((state) => state.deleteList);
+  const { cardColor } = useColorSchemeStore();
 
   const parentAnimatedRef = useAnimatedRef();
   const animatedRef = useAnimatedRef();
@@ -339,7 +341,7 @@ export default function TodoListCard({
               {
                 width,
                 minHeight: width, // 1:1 aspect ratio
-                backgroundColor: '#ffed85',
+                backgroundColor: cardColors[cardColor],
               },
               cardAnimatedStyle,
             ]}

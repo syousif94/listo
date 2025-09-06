@@ -7,6 +7,8 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import { useColorScheme } from '../hooks/useColorScheme';
+import { useThemeColor } from '../hooks/useThemeColor';
 import { useDatePickerStore } from '../store/datePickerStore';
 import { TodoItem as TodoItemType, useTodoStore } from '../store/todoStore';
 import AccessoryButton from './AccessoryButton';
@@ -23,6 +25,13 @@ const TodoItem = forwardRef<TextInput, TodoItemProps>(
   ({ item, listId, onDeleteEmpty, onFocusChange }, ref) => {
     const updateTodo = useTodoStore((state) => state.updateTodo);
     const toggleTodo = useTodoStore((state) => state.toggleTodo);
+
+    // Theme colors
+    const colorScheme = useColorScheme();
+    const isDark = colorScheme === 'dark';
+    const textColor = useThemeColor({}, 'text');
+    const iconColor = isDark ? '#ffffff' : '#000000';
+
     const {
       isVisible: datePickerVisible,
       target: datePickerTarget,
@@ -273,7 +282,13 @@ const TodoItem = forwardRef<TextInput, TodoItemProps>(
               ref={ref}
               style={[
                 styles.itemText,
-                item.completed && styles.itemTextCompleted,
+                {
+                  color: item.completed
+                    ? isDark
+                      ? 'rgba(238, 238, 238, 0.3)'
+                      : 'rgba(0, 0, 0, 0.3)'
+                    : textColor,
+                },
               ]}
               value={item.text}
               onChangeText={handleTextChange}
@@ -288,7 +303,15 @@ const TodoItem = forwardRef<TextInput, TodoItemProps>(
             <Animated.View
               style={[
                 styles.checkbox,
-                item.completed && styles.checkboxCompleted,
+                {
+                  borderColor: item.completed
+                    ? isDark
+                      ? 'rgba(238, 238, 238, 0.2)'
+                      : 'rgba(0, 0, 0, 0.1)'
+                    : isDark
+                    ? 'rgba(238, 238, 238, 0.4)'
+                    : 'rgba(0, 0, 0, 0.2)',
+                },
                 checkboxAnimatedStyle,
               ]}
             >
@@ -298,13 +321,28 @@ const TodoItem = forwardRef<TextInput, TodoItemProps>(
         </View>
         {item.dueDate && !isBeingEditedInDatePicker && (
           <View style={styles.dueDateRow}>
-            <Text style={styles.dueDateText}>
+            <Text
+              style={[
+                styles.dueDateText,
+                {
+                  color: isDark
+                    ? 'rgba(238, 238, 238, 0.5)'
+                    : 'rgba(0, 0, 0, 0.5)',
+                },
+              ]}
+            >
               {formatDueDate(item.dueDate).dateText}
             </Text>
             <Text
               style={[
                 styles.daysAwayText,
-                formatDueDate(item.dueDate).isPastDue && styles.pastDueText,
+                {
+                  color: formatDueDate(item.dueDate).isPastDue
+                    ? '#ef4444'
+                    : isDark
+                    ? 'rgba(238, 238, 238, 0.5)'
+                    : 'rgba(0, 0, 0, 0.5)',
+                },
               ]}
             >
               {formatDueDate(item.dueDate).daysText}
@@ -313,14 +351,28 @@ const TodoItem = forwardRef<TextInput, TodoItemProps>(
         )}
         {isBeingEditedInDatePicker && (
           <Animated.View style={[styles.dueDateRow, dateEditingAnimatedStyle]}>
-            <Text style={[styles.dueDateText, styles.editingDateText]}>
+            <Text
+              style={[
+                styles.dueDateText,
+                styles.editingDateText,
+                {
+                  color: isDark ? '#0A84FF' : '#007AFF', // Blue color for editing state
+                },
+              ]}
+            >
               {formatEditingDate().dateText}
             </Text>
             <Text
               style={[
                 styles.daysAwayText,
                 styles.editingDateText,
-                formatEditingDate().isPastDue && styles.pastDueText,
+                {
+                  color: formatEditingDate().isPastDue
+                    ? '#ef4444'
+                    : isDark
+                    ? '#0A84FF'
+                    : '#007AFF',
+                },
               ]}
             >
               {formatEditingDate().daysText}
@@ -334,8 +386,10 @@ const TodoItem = forwardRef<TextInput, TodoItemProps>(
           visible={shouldShowAccessory}
         >
           <AccessoryButton onPress={handleAccessoryPress}>
-            <EvilIcons name="calendar" size={24} color="black" />
-            <Text style={styles.accessoryText}>Due Date</Text>
+            <EvilIcons name="calendar" size={24} color={iconColor} />
+            <Text style={[styles.accessoryText, { color: textColor }]}>
+              Due Date
+            </Text>
           </AccessoryButton>
         </KeyboardAccessoryView>
       </View>
@@ -349,7 +403,7 @@ export default TodoItem;
 
 const styles = StyleSheet.create({
   editingDateText: {
-    color: '#007AFF', // Blue color for editing state
+    // Color is now handled dynamically
   },
   dueDateRow: {
     paddingLeft: 20,
@@ -360,11 +414,9 @@ const styles = StyleSheet.create({
   },
   dueDateText: {
     fontSize: 8,
-    color: 'rgba(0, 0, 0, 0.5)',
   },
   daysAwayText: {
     fontSize: 8,
-    color: 'rgba(0, 0, 0, 0.5)',
   },
   pastDueText: {
     color: '#ef4444', // red-500
@@ -382,12 +434,11 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: 'rgba(0, 0, 0, 0.2)',
     marginLeft: 12,
     marginTop: 8,
   },
   checkboxCompleted: {
-    borderColor: 'rgba(0, 0, 0, 0.1)',
+    // Colors now handled dynamically
   },
   checkboxDot: {
     width: 12,
@@ -401,7 +452,6 @@ const styles = StyleSheet.create({
   },
   itemText: {
     fontSize: 18,
-    color: 'rgba(0, 0, 0, 0.7)',
     maxWidth: '100%',
     lineHeight: 24,
   },
@@ -412,11 +462,10 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   itemTextCompleted: {
-    color: 'rgba(0, 0, 0, 0.3)',
+    // Color now handled dynamically
   },
   accessoryText: {
     fontSize: 14,
-    color: '#333',
     fontWeight: '600',
     marginLeft: 4,
     marginRight: 4,

@@ -26,6 +26,9 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useColorScheme } from '../hooks/useColorScheme';
+import { useThemeColor } from '../hooks/useThemeColor';
+import { cardColors, useColorSchemeStore } from '../store/colorSchemeStore';
 import { useDatePickerStore } from '../store/datePickerStore';
 import { useTodoStore } from '../store/todoStore';
 import NewTodoInput, { NewTodoInputRef } from './NewTodoInput';
@@ -78,6 +81,13 @@ function ExpandedTodoCard({
     useDatePickerStore();
   const insets = useSafeAreaInsets();
   const windowDimensions = useWindowDimensions();
+
+  // Theme colors
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const textColor = useThemeColor({}, 'text');
+  const primaryColor = useThemeColor({}, 'primary');
+  const { cardColor } = useColorSchemeStore();
 
   // State for managing newly created items that need focus
   const inputRefs = useRef<Map<string, TextInput>>(new Map());
@@ -311,7 +321,9 @@ function ExpandedTodoCard({
     backgroundColor: interpolateColor(
       animationProgress.value,
       [0, 1],
-      ['#ffed85', '#fff']
+      isDark
+        ? [cardColors[cardColor], '#151718']
+        : [cardColors[cardColor], '#fff']
     ),
     opacity: opacity.value,
   }));
@@ -631,9 +643,13 @@ function ExpandedTodoCard({
                 <BlurView
                   intensity={80}
                   style={styles.backButtonBlur}
-                  tint="light"
+                  tint={isDark ? 'dark' : 'light'}
                 >
-                  <Ionicons name="chevron-back" size={20} color="#007AFF" />
+                  <Ionicons
+                    name="chevron-back"
+                    size={20}
+                    color={primaryColor}
+                  />
                 </BlurView>
               </AnimatedPressable>
             </Animated.View>
@@ -650,17 +666,21 @@ function ExpandedTodoCard({
                 <BlurView
                   intensity={80}
                   style={styles.blurContainer}
-                  tint="light"
+                  tint={isDark ? 'dark' : 'light'}
                 >
                   <Animated.View style={headerTextStyle}>
                     <TextInput
-                      style={styles.headerTextInput}
+                      style={[styles.headerTextInput, { color: textColor }]}
                       value={list?.name || ''}
                       onChangeText={(text) =>
                         updateList(listId, { name: text })
                       }
                       placeholder="List title"
-                      placeholderTextColor="rgba(51, 51, 51, 0.5)"
+                      placeholderTextColor={
+                        isDark
+                          ? 'rgba(238, 238, 238, 0.5)'
+                          : 'rgba(51, 51, 51, 0.5)'
+                      }
                       multiline={false}
                       textAlign="center"
                     />
@@ -933,12 +953,10 @@ const styles = StyleSheet.create({
   floatingHeaderText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
   },
   headerTextInput: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
     textAlign: 'center',
     minWidth: 120,
     paddingHorizontal: 8,
@@ -947,7 +965,6 @@ const styles = StyleSheet.create({
   },
   accessoryText: {
     fontSize: 14,
-    color: '#333',
     fontWeight: '600',
   },
 });

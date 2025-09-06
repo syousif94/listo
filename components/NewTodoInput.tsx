@@ -12,6 +12,8 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import { useColorScheme } from '../hooks/useColorScheme';
+import { useThemeColor } from '../hooks/useThemeColor';
 import { useDatePickerStore } from '../store/datePickerStore';
 import { useTodoStore } from '../store/todoStore';
 import AccessoryButton from './AccessoryButton';
@@ -44,6 +46,13 @@ const NewTodoInput = forwardRef<NewTodoInputRef, NewTodoInputProps>(
   ) => {
     const addTodoToList = useTodoStore((state) => state.addTodoToList);
     const { showDatePicker } = useDatePickerStore();
+
+    // Theme colors
+    const colorScheme = useColorScheme();
+    const isDark = colorScheme === 'dark';
+    const textColor = useThemeColor({}, 'text');
+    const iconColor = isDark ? '#ffffff' : '#000000';
+
     const [text, setText] = useState('');
     const [isFocused, setIsFocused] = useState(false);
     const inputRef = useRef<TextInput>(null);
@@ -149,7 +158,7 @@ const NewTodoInput = forwardRef<NewTodoInputRef, NewTodoInputProps>(
           <View style={styles.textInputWrapper}>
             <TextInput
               ref={inputRef}
-              style={styles.input}
+              style={[styles.input, { color: textColor }]}
               value={text}
               onChangeText={handleChangeText}
               onFocus={handleFocus}
@@ -158,15 +167,43 @@ const NewTodoInput = forwardRef<NewTodoInputRef, NewTodoInputProps>(
               scrollEnabled={false}
               inputAccessoryViewID={ACCESSORY_VIEW_ID}
               placeholder="Add a new item"
+              placeholderTextColor={
+                isDark ? 'rgba(238, 238, 238, 0.5)' : 'rgba(51, 51, 51, 0.5)'
+              }
             />
           </View>
-          <View style={styles.checkbox} />
+          <View
+            style={[
+              styles.checkbox,
+              {
+                borderColor: isDark
+                  ? 'rgba(238, 238, 238, 0.3)'
+                  : 'rgba(0, 0, 0, 0.1)',
+              },
+            ]}
+          />
         </Animated.View>
 
         {showEmptyState && !isFocused ? (
           <Animated.View style={styles.emptyContainer} pointerEvents={'none'}>
-            <Text style={styles.emptyTitleText}>Empty List</Text>
-            <Text style={styles.emptyText}>
+            <Text
+              style={[
+                styles.emptyTitleText,
+                {
+                  color: isDark ? 'rgba(238, 238, 238, 0.4)' : '#bbb',
+                },
+              ]}
+            >
+              Empty List
+            </Text>
+            <Text
+              style={[
+                styles.emptyText,
+                {
+                  color: isDark ? 'rgba(238, 238, 238, 0.6)' : '#666',
+                },
+              ]}
+            >
               Tap anywhere to create a new item or press the green button to
               dictate.
             </Text>
@@ -179,8 +216,10 @@ const NewTodoInput = forwardRef<NewTodoInputRef, NewTodoInputProps>(
           visible={shouldShowAccessory}
         >
           <AccessoryButton onPress={handleAccessoryPress}>
-            <EvilIcons name="calendar" size={24} color="black" />
-            <Text style={styles.accessoryText}>Due Date</Text>
+            <EvilIcons name="calendar" size={24} color={iconColor} />
+            <Text style={[styles.accessoryText, { color: textColor }]}>
+              Due Date
+            </Text>
           </AccessoryButton>
         </KeyboardAccessoryView>
       </Pressable>
@@ -215,7 +254,6 @@ const styles = StyleSheet.create({
   },
   input: {
     fontSize: 18,
-    color: 'rgba(0, 0, 0, 0.7)',
     lineHeight: 24,
     maxWidth: '100%',
   },
@@ -224,7 +262,6 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
     marginLeft: 12,
     marginTop: 8,
   },
@@ -239,7 +276,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: '#666',
     textAlign: 'center',
     lineHeight: 16 * 1.6,
     width: 280,
@@ -247,12 +283,10 @@ const styles = StyleSheet.create({
   emptyTitleText: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#bbb',
     marginBottom: 20,
   },
   accessoryText: {
     fontSize: 14,
-    color: '#333',
     fontWeight: '600',
     marginLeft: 4,
     marginRight: 4,
